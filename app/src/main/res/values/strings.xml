@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JP Subs</string>
+    <string name="subtitle">Milestone 1: audio level test</string>
+    <string name="btn_start">Start listening</string>
+    <string name="btn_stop">Stop</string>
+    <string name="status_idle">Not listening. Tap Start, then play something in another app.</string>
+    <string name="status_listening">Listening to phone audio. The bar should move when sound plays.</string>
+    <string name="status_no_permission">Microphone permission was denied. Android needs it to capture playback audio. Tap Start and allow it.</string>
+    <string name="status_capture_denied">Screen capture request was cancelled. Tap Start and choose \"Start now\".</string>
+    <string name="notif_text">Listening to phone audio</string>
+    <string name="hint">Tip: open a YouTube stream, switch back here and watch the bar. If it stays flat while sound is playing, that app may block audio capture.</string>
+</resources>
