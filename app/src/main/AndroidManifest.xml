@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Lets the app download the speech model (one time, about 155 MB). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Android requires this permission to capture playback audio,
          even though we never use the microphone itself. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

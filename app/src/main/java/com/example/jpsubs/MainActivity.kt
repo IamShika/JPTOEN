@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -19,10 +20,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 
 /**
- * The only screen of the app. It does three things:
- *  1. Asks Android for the permissions we need.
- *  2. Starts / stops CaptureService (which does the real audio work).
- *  3. Redraws the volume bar about 20 times per second.
+ * The only screen of the app. It does these things:
+ *  1. Lets you download the speech model (once).
+ *  2. Asks Android for the permissions we need.
+ *  3. Starts / stops CaptureService (which does the real audio work).
+ *  4. Redraws the screen about 20 times per second: volume bar, status, Japanese text.
  */
 class MainActivity : ComponentActivity() {
 
@@ -30,12 +32,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var statusText: TextView
     private lateinit var levelBar: ProgressBar
     private lateinit var toggleButton: Button
+    private lateinit var downloadPanel: View
+    private lateinit var downloadBar: ProgressBar
+    private lateinit var downloadText: TextView
+    private lateinit var downloadButton: Button
+    private lateinit var statsText: TextView
+    private lateinit var transcriptText: TextView
 
     // A Handler lets us run a bit of code again and again on a timer.
     private val handler = Handler(Looper.getMainLooper())
-    private var wasRunning = false
 
-    // This little loop reads the latest volume from the service and updates the screen.
+    // Remembers which version of the transcript is on screen, so we only redraw when it changes.
+    private var shownTranscriptVersion = -1
+
+    // This little loop reads the latest state from the service and updates the screen.
     private val refreshLoop = object : Runnable {
         override fun run() {
             refreshScreen()
@@ -50,7 +60,7 @@ class MainActivity : ComponentActivity() {
             if (hasMicPermission()) {
                 askForScreenCapture()
             } else {
-                statusText.text = getString(R.string.status_no_permission)
+                CaptureService.error = getString(R.string.status_no_permission)
             }
         }
 
@@ -67,7 +77,7 @@ class MainActivity : ComponentActivity() {
                 }
                 ContextCompat.startForegroundService(this, intent)
             } else {
-                statusText.text = getString(R.string.status_capture_denied)
+                CaptureService.error = getString(R.string.status_capture_denied)
             }
         }
 
@@ -78,13 +88,22 @@ class MainActivity : ComponentActivity() {
         statusText = findViewById(R.id.statusText)
         levelBar = findViewById(R.id.levelBar)
         toggleButton = findViewById(R.id.toggleButton)
+        downloadPanel = findViewById(R.id.downloadPanel)
+        downloadBar = findViewById(R.id.downloadBar)
+        downloadText = findViewById(R.id.downloadText)
+        downloadButton = findViewById(R.id.downloadButton)
+        statsText = findViewById(R.id.statsText)
+        transcriptText = findViewById(R.id.transcriptText)
 
         toggleButton.setOnClickListener { onToggleClicked() }
+        downloadButton.setOnClickListener { ModelManager.startDownload(this) }
     }
 
     // Only redraw while the screen is visible (saves battery).
     override fun onResume() {
         super.onResume()
+        ModelManager.refresh(this) // is the model already on the phone?
+        shownTranscriptVersion = -1 // force a redraw of the text
         handler.post(refreshLoop)
     }
 
@@ -101,6 +120,7 @@ class MainActivity : ComponentActivity() {
             }
             startService(stop)
         } else {
+            CaptureService.error = ""
             requestPermissionsThenCapture()
         }
     }
@@ -141,16 +161,65 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshScreen() {
         val running = CaptureService.running
+        val modelReady = ModelManager.ready
 
-        // level goes from 0.0 to 1.0, the bar goes from 0 to 100
+        // --- volume bar: level goes from 0.0 to 1.0, the bar goes from 0 to 100
         levelBar.progress = if (running) (CaptureService.level * 100).toInt() else 0
+
+        // --- model download area (only shown until the model is installed)
+        if (modelReady) {
+            downloadPanel.visibility = View.GONE
+        } else {
+            downloadPanel.visibility = View.VISIBLE
+            downloadBar.progress = (ModelManager.progress * 100).toInt()
+            downloadText.text = ModelManager.message
+
+            when (ModelManager.state) {
+                ModelManager.State.DOWNLOADING -> {
+                    downloadButton.isEnabled = false
+                    downloadButton.text = getString(R.string.btn_downloading)
+                }
+                ModelManager.State.FAILED -> {
+                    downloadButton.isEnabled = true
+                    downloadButton.text = getString(R.string.btn_retry)
+                }
+                ModelManager.State.IDLE -> {
+                    downloadButton.isEnabled = true
+                    downloadButton.text = getString(R.string.btn_download)
+                }
+            }
+        }
+
+        // --- start / stop button: needs the model, except that Stop must always work
+        toggleButton.isEnabled = modelReady || running
         toggleButton.text = getString(if (running) R.string.btn_stop else R.string.btn_start)
 
-        if (running && !wasRunning) {
-            statusText.text = getString(R.string.status_listening)
-        } else if (!running && wasRunning) {
-            statusText.text = getString(R.string.status_idle)
+        // --- the line of status text under the title
+        val status = when {
+            running -> CaptureService.status
+            CaptureService.error.isNotEmpty() -> CaptureService.error
+            !modelReady -> getString(R.string.status_need_model)
+            else -> getString(R.string.status_idle)
         }
-        wasRunning = running
+        if (statusText.text.toString() != status) {
+            statusText.text = status
+        }
+
+        // --- speed information
+        val stats = if (running) CaptureService.stats else ""
+        if (statsText.text.toString() != stats) {
+            statsText.text = stats
+        }
+
+        // --- the Japanese text (only redrawn when it changed)
+        val version = Transcript.version
+        if (version != shownTranscriptVersion) {
+            shownTranscriptVersion = version
+            transcriptText.text = if (Transcript.isEmpty()) {
+                getString(R.string.transcript_empty)
+            } else {
+                Transcript.asText()
+            }
+        }
     }
 }

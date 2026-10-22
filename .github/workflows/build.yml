@@ -9,7 +9,7 @@ on:
   workflow_dispatch: # also lets you press "Run workflow" by hand in the Actions tab
 
 permissions:
-  contents: write # needed to publish the APK on the Releases page
+  contents: write # needed to publish files on the Releases page
 
 jobs:
   build:
@@ -23,6 +23,65 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      # ---------------------------------------------------------------------------
+      # The speech engine (sherpa-onnx). Its Kotlin code is already in this repo
+      # (app/src/main/java/com/k2fsa/sherpa/onnx). The compiled native libraries are
+      # big binary files, so we download them here instead of storing them in git.
+      # The version MUST match the Kotlin code (both are 1.13.8).
+      # ---------------------------------------------------------------------------
+      - name: Download the speech engine libraries
+        run: |
+          set -euo pipefail
+          V=1.13.8
+          curl -fL --retry 3 -o /tmp/sherpa-android.tar.bz2 \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/v${V}/sherpa-onnx-v${V}-android.tar.bz2"
+          mkdir -p /tmp/sherpa
+          tar xjf /tmp/sherpa-android.tar.bz2 -C /tmp/sherpa
+          SRC=$(find /tmp/sherpa -type d -name arm64-v8a | head -n 1)
+          test -n "$SRC"
+          mkdir -p app/src/main/jniLibs/arm64-v8a
+          cp -v "$SRC"/*.so app/src/main/jniLibs/arm64-v8a/
+          ls -lh app/src/main/jniLibs/arm64-v8a
+
+      # ---------------------------------------------------------------------------
+      # The Japanese speech model. Only runs the very first time: it downloads the
+      # official model, keeps just the small files the app needs (about 155 MB) and
+      # puts them on your repo's Releases page as "model-v1". The app downloads them
+      # from there. If this ever goes wrong, delete the "model-v1" release and tag
+      # on GitHub and run this workflow again.
+      # ---------------------------------------------------------------------------
+      - name: Publish the speech model files (first run only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view model-v1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "The model-v1 release already exists, nothing to do."
+            exit 0
+          fi
+
+          mkdir -p /tmp/model
+          cd /tmp/model
+
+          M=sherpa-onnx-zipformer-ja-reazonspeech-2024-08-01
+          curl -fL --retry 3 -o model.tar.bz2 \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${M}.tar.bz2"
+          tar xjf model.tar.bz2
+          curl -fL --retry 3 -o silero_vad.onnx \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
+          ls -lh "$M"
+
+          gh release create model-v1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --prerelease \
+            --title "Speech model files (the app downloads these, do not delete)" \
+            --notes "Japanese speech recognition model (ReazonSpeech zipformer, int8) and a voice detector, repackaged from the sherpa-onnx project. The app downloads these files the first time you use it." \
+            "$M/encoder-epoch-99-avg-1.int8.onnx" \
+            "$M/decoder-epoch-99-avg-1.onnx" \
+            "$M/joiner-epoch-99-avg-1.int8.onnx" \
+            "$M/tokens.txt" \
+            "silero_vad.onnx"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4

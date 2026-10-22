@@ -5,3 +5,6 @@ local.properties
 *.iml
 captures/
 .DS_Store
+
+# The speech engine libraries are downloaded by the GitHub build, never committed.
+app/src/main/jniLibs/

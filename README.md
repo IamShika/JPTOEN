@@ -1,90 +1,101 @@
-# JP Subs (Milestone 1: audio level test)
+# JP Subs (Milestone 2: Japanese speech to text)
 
-An open-source Android app that will listen to whatever your phone is playing,
-turn Japanese speech into text, translate it to English and show it as subtitles.
+An open-source Android app that listens to whatever your phone is playing,
+turns Japanese speech into text, translates it to English and shows it as subtitles.
 
-**This is Milestone 1.** It only does the first job: capture the phone's playback
-audio and show a volume bar. If the bar moves while a YouTube stream plays, the
-hardest permission step is solved and we can build the rest on top.
+**This is Milestone 2.** The app now captures the phone's playback audio, finds
+the sentences, and writes the Japanese text on screen. There is no translation
+yet (that is Milestone 3).
 
 ## Roadmap
 
-- [x] **Milestone 1:** capture playback audio, show a volume bar (this version)
-- [ ] **Milestone 2:** Japanese speech-to-text on the captured audio
+- [x] **Milestone 1:** capture playback audio, show a volume bar
+- [x] **Milestone 2:** Japanese speech-to-text on the captured audio (this version)
 - [ ] **Milestone 3:** translate the Japanese text to English
 - [ ] **Milestone 4:** floating subtitle overlay on top of other apps
 
-## What is in each file
+## How it works
+
+```
+phone audio -> voice detector -> pieces of speech -> Japanese recognizer -> text on screen
+               (Silero VAD)                          (ReazonSpeech, run by sherpa-onnx)
+```
+
+Everything runs on the phone. After the one-time model download it needs no internet.
+
+## What is new in each file
 
 | File | What it does |
 |---|---|
-| `app/src/main/java/com/example/jpsubs/MainActivity.kt` | The screen. Asks for permissions, has the Start/Stop button, draws the volume bar. |
-| `app/src/main/java/com/example/jpsubs/CaptureService.kt` | The worker. Runs in the background, records the playback audio, measures loudness. Has a `FUTURE HOOK` comment where speech-to-text will plug in. |
-| `app/src/main/res/layout/activity_main.xml` | How the screen looks. |
-| `app/src/main/res/values/strings.xml` | All the text shown in the app. |
-| `app/src/main/AndroidManifest.xml` | The app's "ID card": name, permissions, which screens and services exist. |
-| `app/build.gradle.kts` | App settings: Android version support, libraries. |
-| `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties` | Project-wide build settings. |
-| `.github/workflows/build.yml` | Tells GitHub to build the APK for you after every push. |
+| `CaptureService.kt` | The worker. Reads audio, cuts it into sentences, runs the recognizer. Has a `FUTURE HOOK` where translation will plug in. |
+| `ModelManager.kt` | Downloads the speech model once (about 155 MB) and remembers where it is. |
+| `Transcript.kt` | A small notebook where recognized sentences are stored for the screen. |
+| `Tuning.kt` | Numbers you can change to trade speed against accuracy. Start here when you want to experiment. |
+| `MainActivity.kt` | The screen: download button, Start/Stop, volume bar, Japanese text. |
+| `app/src/main/java/com/k2fsa/sherpa/onnx/*` | The speech engine's Kotlin code, copied unchanged from sherpa-onnx v1.13.8. Do not edit these. |
+| `.github/workflows/build.yml` | The GitHub build. It now also fetches the engine libraries and publishes the model files. |
 
-## How to build it with no computer (Termux + GitHub)
+## How to update your repo from Termux
 
-1. On github.com, create a new empty repository, for example `jpsubs`.
-   Do not add a README or other files to it.
-2. Make sure you have a GitHub token that can push code **and workflow files**.
-   Classic token: tick `repo` and `workflow`. Fine-grained token: give the repo
-   "Contents: Read and write" and "Workflows: Read and write".
-3. In Termux, run these one by one (replace `YOUR_USERNAME`):
+Put `jpsubs-milestone2.zip` in your Downloads folder, then run these one at a time:
 
 ```bash
-pkg update && pkg install git unzip
-termux-setup-storage
-cd ~
-unzip ~/storage/downloads/jpsubs-milestone1.zip
-cd jpsubs
-git init -b main
+cd ~/downloads
+unzip -o jpsubs-milestone2.zip -d jpsubs-milestone1
+cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Milestone 1: audio level meter"
-git remote add origin https://github.com/YOUR_USERNAME/jpsubs.git
-git push -u origin main
+git commit -m "Milestone 2: Japanese speech to text"
+git push
 ```
 
-When git asks for a password, paste your token (not your GitHub password).
+The `-o` means "overwrite the old files". If git asks for a password, paste your token.
 
-4. Open the repo on GitHub, tap the **Actions** tab. A run called "Build APK"
-   should be going. It takes about 3 to 6 minutes.
-5. When it turns green, tap the **Releases** section on the repo's main page,
-   open **Latest build**, and download `app-debug.apk`.
-6. Open the downloaded file. Android will ask you to allow installs from your
-   browser. Allow it. If Play Protect warns about an unknown app, choose
-   "More details" then "Install anyway" (it is your own app).
+Then open the **Actions** tab on GitHub. This first Milestone 2 build takes longer
+(about 5 to 10 minutes) because it downloads the speech engine and the model once.
+Later builds are faster.
+
+When it is green, install the new APK from **Releases > Latest build**, the same way
+as before. It installs over the old version.
+
+> The Releases page will now show two entries. **Latest build** has the APK you install.
+> **Speech model files** holds the model that the app downloads. Do not delete it.
+> The repo must stay **public**, or the app cannot download the model.
 
 ## How to test it
 
-1. Open **JP Subs** and tap **Start listening**.
-2. Allow the microphone permission. (Android requires it for capturing playback
-   audio. The app never records your microphone.) Allow notifications too.
-3. On the "Start recording or casting?" popup, tap **Start now**.
-4. Open a YouTube stream, then switch back to JP Subs. The green bar should move
-   with the sound.
+1. Open **JP Subs**. Tap **Download Japanese model**. Use Wi-Fi if you can: it is about 155 MB.
+   If it is interrupted, tap the button again and it continues.
+2. Tap **Start listening**, allow the permissions, tap **Start now**.
+3. Wait for "Listening…" (the first start takes a few seconds while the model loads).
+4. Play a Japanese video or stream, switch back to JP Subs, and watch the text.
 
-If the bar stays flat while sound is clearly playing:
+Text appears a second or two after someone finishes a sentence. You can long-press
+the text to select and copy it, for example into a translator.
 
-- Try the same video in **Chrome** instead of the YouTube app. If the bar moves
-  there but not in the YouTube app, then the YouTube app blocks audio capture
-  and we will need a different plan.
-- Make sure the notification says "Listening to phone audio".
-- Make sure the media volume is not zero.
+The small gray line under the Start button shows how long the last sentence took to
+recognize. This is the number to tell Claude when you test on each phone:
 
-## If the GitHub build fails
+- recognized in **less than the length of the speech**: the phone keeps up
+- **longer**: the phone is too slow for this model, and subtitles fall behind
 
-Open the failed run in the **Actions** tab, tap the red step, and copy the last
-20 or so lines of the error. Paste them to Claude and it can fix the code.
-Fixing a failed first build is very normal.
+## Things that can go wrong
+
+- **Download fails with "not found":** the GitHub build has not finished, or the repo is
+  private. Wait for the green check and make sure the repo is public.
+- **The app closes or shows an error when you tap Start:** send Claude the red error text
+  from the status line.
+- **The text is empty but the green bar moves:** the speech may be too quiet or covered
+  by music. Try lowering `VAD_THRESHOLD` in `Tuning.kt`.
+- **Sentences are chopped into tiny pieces:** raise `MIN_SILENCE_SECONDS` in `Tuning.kt`.
+- **Subtitles feel late:** lower `MAX_SPEECH_SECONDS` in `Tuning.kt`.
+- **"skipped some speech" appears often:** the phone cannot keep up. Tell Claude which phone it is.
+- **The GitHub build fails:** open the failed run in the **Actions** tab, tap the red step,
+  and copy the last 20 or so lines of the error to Claude.
 
 ## Notes
 
-- Needs Android 10 or newer (tested target: Android 16).
-- The APK is a *debug* build, which is fine for personal use and testing.
-- Edit files on GitHub's website (pencil icon) or in Termux, then push. Every push
-  builds a fresh APK automatically.
+- Needs Android 10 or newer (tested target: Android 16). The APK only contains the 64-bit ARM
+  version of the engine, which both of the target phones use.
+- The model needs about 160 MB of free storage on the phone.
+- Recognition will make mistakes, especially with music, fast slang or several people talking at once.
+- Third-party code and models are listed in `NOTICE.md`.

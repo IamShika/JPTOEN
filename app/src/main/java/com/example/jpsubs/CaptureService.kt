@@ -1,5 +1,6 @@
 package com.example.jpsubs
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.Manifest
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioPlaybackCaptureConfiguration
@@ -19,21 +19,42 @@ import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import com.k2fsa.sherpa.onnx.FeatureConfig
+import com.k2fsa.sherpa.onnx.OfflineModelConfig
+import com.k2fsa.sherpa.onnx.OfflineRecognizer
+import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OfflineTransducerModelConfig
+import com.k2fsa.sherpa.onnx.SileroVadModelConfig
+import com.k2fsa.sherpa.onnx.Vad
+import com.k2fsa.sherpa.onnx.VadModelConfig
+import java.util.Locale
+import java.util.concurrent.LinkedBlockingQueue
 import kotlin.concurrent.thread
 import kotlin.math.log10
 import kotlin.math.sqrt
 
 /**
  * A "foreground service" keeps running while you are in another app (like YouTube).
- * This one records whatever sound the phone is playing and measures how loud it is.
  *
- * LATER MILESTONES: the place marked "FUTURE HOOK" below is where we will send the
- * audio to the speech-to-text engine instead of only measuring the volume.
+ * The pipeline inside it (Milestone 2):
+ *
+ *   phone audio --> [voice detector] --> pieces of speech --> [Japanese recognizer] --> text
+ *
+ *  - The voice detector (Silero VAD) cuts the audio into sentences by finding pauses.
+ *  - The recognizer (ReazonSpeech zipformer, run by sherpa-onnx) turns each sentence into text.
+ *  - The text goes into `Transcript`, which the screen displays.
+ *
+ * Two threads work at once: one keeps reading audio (it must never stall, or sound is lost),
+ * and one does the slow recognition work.
+ *
+ * LATER MILESTONES: the place marked "FUTURE HOOK" is where the text will be sent to
+ * the translator (Milestone 3) and then to the floating subtitles (Milestone 4).
  */
 class CaptureService : Service() {
 
@@ -43,16 +64,19 @@ class CaptureService : Service() {
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "resultData"
 
-        // 16 kHz mono is what most speech-to-text engines (Whisper etc.) expect.
+        // 16 kHz mono is what the speech engine expects.
         const val SAMPLE_RATE = 16000
 
         private const val TAG = "CaptureService"
         private const val CHANNEL_ID = "capture"
         private const val NOTIFICATION_ID = 1
 
-        // Shared with MainActivity so it can draw the bar.
+        // Shared with MainActivity so it can draw things.
         @Volatile var running: Boolean = false
         @Volatile var level: Float = 0f // 0.0 (silent) to 1.0 (very loud)
+        @Volatile var status: String = "" // what we are doing right now
+        @Volatile var error: String = "" // why we stopped, if something went wrong
+        @Volatile var stats: String = "" // speed information, useful for testing phones
     }
 
     private var projection: MediaProjection? = null
@@ -81,17 +105,29 @@ class CaptureService : Service() {
     private fun startCapture(intent: Intent) {
         if (running) return
 
+        error = ""
+        status = ""
+        stats = ""
+
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
         val resultData = IntentCompat.getParcelableExtra(intent, EXTRA_RESULT_DATA, Intent::class.java)
 
         // Android 14+ wants the notification up BEFORE we touch the projection.
         showForegroundNotification()
 
+        ModelManager.refresh(this)
+        if (!ModelManager.ready) {
+            error = "The speech model is not downloaded yet."
+            stopCapture()
+            return
+        }
+
         if (resultData == null ||
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
             Log.e(TAG, "Missing permission or projection data")
+            error = "Missing permission."
             stopCapture()
             return
         }
@@ -133,31 +169,188 @@ class CaptureService : Service() {
                 .setBufferSizeInBytes(maxOf(minBuffer, SAMPLE_RATE * 2)) // at least 1 second
                 .build()
 
-            record.startRecording()
             audioRecord = record
+            Transcript.clear()
             keepReading = true
             running = true
+            status = "Loading the speech model…"
 
-            // Do the reading on a separate thread so the app stays responsive.
-            worker = thread(name = "audio-capture") {
-                val buffer = ShortArray(SAMPLE_RATE / 10) // 100 milliseconds of sound
-                while (keepReading) {
-                    val count = record.read(buffer, 0, buffer.size)
-                    if (count > 0) {
-                        level = measureLevel(buffer, count)
-
-                        // FUTURE HOOK: Milestone 2 will send `buffer` to speech-to-text here.
-                    } else if (count < 0) {
-                        Log.e(TAG, "AudioRecord.read failed with code $count")
-                        Handler(Looper.getMainLooper()).post { stopCapture() }
-                        break
-                    }
-                }
-            }
+            // Everything slow happens on a separate thread so the app stays responsive.
+            worker = thread(name = "audio-pipeline") { runPipeline(record) }
         } catch (e: Exception) {
             Log.e(TAG, "Could not start capture", e)
+            error = "Could not start capture: ${e.message}"
             stopCapture()
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The pipeline
+    // ---------------------------------------------------------------------------------------
+
+    private fun runPipeline(record: AudioRecord) {
+        var vad: Vad? = null
+        var recognizer: OfflineRecognizer? = null
+        var decoderThread: Thread? = null
+
+        // Pieces of speech wait here for the recognizer.
+        val waiting = LinkedBlockingQueue<FloatArray>()
+
+        try {
+            // Loading takes a few seconds (the model is about 150 MB).
+            val loadedVad = createVad()
+            vad = loadedVad
+            val loadedRecognizer = createRecognizer()
+            recognizer = loadedRecognizer
+
+            if (!keepReading) return // the person pressed Stop while we were loading
+
+            status = "Listening…"
+            record.startRecording()
+
+            // Thread 2: turns waiting speech into text.
+            decoderThread = thread(name = "asr-decode") { decodeLoop(loadedRecognizer, waiting) }
+
+            // Thread 1 (this one): reads audio and finds the sentences.
+            val buffer = ShortArray(SAMPLE_RATE / 10) // 100 milliseconds of sound
+            while (keepReading) {
+                val count = record.read(buffer, 0, buffer.size)
+                if (count > 0) {
+                    level = measureLevel(buffer, count)
+
+                    // The speech engine wants numbers between -1.0 and 1.0.
+                    val samples = FloatArray(count) { buffer[it] / 32768f }
+                    loadedVad.acceptWaveform(samples)
+
+                    // Did the voice detector finish any sentences?
+                    while (!loadedVad.empty()) {
+                        val piece = loadedVad.front().samples
+                        loadedVad.pop()
+                        enqueue(waiting, piece)
+                    }
+                } else if (count < 0) {
+                    if (keepReading) {
+                        Log.e(TAG, "AudioRecord.read failed with code $count")
+                        error = "Audio capture stopped unexpectedly (code $count)."
+                        Handler(Looper.getMainLooper()).post { stopCapture() }
+                    }
+                    break
+                }
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Pipeline failed", t)
+            error = "Error: ${t.message ?: t.javaClass.simpleName}"
+            Handler(Looper.getMainLooper()).post { stopCapture() }
+        } finally {
+            // Tidy up, in the right order: stop the decoder first, then free the models.
+            waiting.clear()
+            waiting.put(FloatArray(0)) // an empty piece means "stop"
+            try {
+                decoderThread?.join()
+            } catch (_: InterruptedException) {
+                // we are shutting down anyway
+            }
+            recognizer?.release()
+            vad?.release()
+        }
+    }
+
+    /** Runs on its own thread: takes speech pieces off the queue and recognizes them. */
+    private fun decodeLoop(recognizer: OfflineRecognizer, waiting: LinkedBlockingQueue<FloatArray>) {
+        while (true) {
+            val piece = waiting.take() // sleeps until something arrives
+            if (piece.isEmpty()) break
+
+            val startedAt = SystemClock.elapsedRealtime()
+            val text = try {
+                transcribe(recognizer, piece)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Recognition failed", t)
+                ""
+            }
+            val tookSeconds = (SystemClock.elapsedRealtime() - startedAt) / 1000.0
+            val audioSeconds = piece.size / SAMPLE_RATE.toDouble()
+
+            stats = String.format(
+                Locale.US,
+                "Last piece: %.1f s of speech, recognized in %.1f s (%d waiting)",
+                audioSeconds, tookSeconds, waiting.size
+            )
+
+            if (text.isNotBlank()) {
+                Transcript.add(text.trim())
+
+                // FUTURE HOOK: Milestone 3 will send `text` to the translator here.
+            }
+        }
+    }
+
+    /** One piece of speech in, Japanese text out. */
+    private fun transcribe(recognizer: OfflineRecognizer, samples: FloatArray): String {
+        val stream = recognizer.createStream()
+        try {
+            stream.acceptWaveform(samples, SAMPLE_RATE)
+            recognizer.decode(stream)
+            return recognizer.getResult(stream).text
+        } finally {
+            stream.release()
+        }
+    }
+
+    /**
+     * Adds a piece to the waiting line. If the phone is too slow and the line is
+     * too long, the oldest pieces are skipped so the subtitles don't fall further
+     * and further behind.
+     */
+    private fun enqueue(waiting: LinkedBlockingQueue<FloatArray>, piece: FloatArray) {
+        var skipped = false
+        while (waiting.size >= Tuning.MAX_WAITING_SEGMENTS) {
+            waiting.poll()
+            skipped = true
+        }
+        waiting.add(piece)
+        if (skipped) {
+            Transcript.add("(skipped some speech: the phone could not keep up)")
+        }
+    }
+
+    private fun createVad(): Vad {
+        val config = VadModelConfig(
+            sileroVadModelConfig = SileroVadModelConfig(
+                model = ModelManager.path(this, ModelManager.VAD_FILE),
+                threshold = Tuning.VAD_THRESHOLD,
+                minSilenceDuration = Tuning.MIN_SILENCE_SECONDS,
+                minSpeechDuration = Tuning.MIN_SPEECH_SECONDS,
+                windowSize = 512,
+                maxSpeechDuration = Tuning.MAX_SPEECH_SECONDS,
+            ),
+            sampleRate = SAMPLE_RATE,
+            numThreads = 1,
+            provider = "cpu",
+            debug = false,
+        )
+        // assetManager = null means "load from normal files", not from inside the APK.
+        return Vad(assetManager = null, config = config)
+    }
+
+    private fun createRecognizer(): OfflineRecognizer {
+        val config = OfflineRecognizerConfig(
+            featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
+            modelConfig = OfflineModelConfig(
+                transducer = OfflineTransducerModelConfig(
+                    encoder = ModelManager.path(this, ModelManager.ENCODER_FILE),
+                    decoder = ModelManager.path(this, ModelManager.DECODER_FILE),
+                    joiner = ModelManager.path(this, ModelManager.JOINER_FILE),
+                ),
+                tokens = ModelManager.path(this, ModelManager.TOKENS_FILE),
+                modelType = "transducer",
+                numThreads = Tuning.RECOGNIZER_THREADS,
+                provider = "cpu",
+                debug = false,
+            ),
+            decodingMethod = "greedy_search",
+        )
+        return OfflineRecognizer(assetManager = null, config = config)
     }
 
     /** Turns a chunk of samples into a number from 0.0 to 1.0 (silent to loud). */
@@ -173,6 +366,10 @@ class CaptureService : Service() {
         val decibels = 20 * log10(rms) // 0 dB = max, -60 dB = nearly silent
         return ((decibels + 60) / 60).coerceIn(0.0, 1.0).toFloat()
     }
+
+    // ---------------------------------------------------------------------------------------
+    // Notification and shutting down
+    // ---------------------------------------------------------------------------------------
 
     private fun showForegroundNotification() {
         val manager = getSystemService(NotificationManager::class.java)
@@ -213,6 +410,9 @@ class CaptureService : Service() {
     /** Cleans up. Safe to call more than once. */
     private fun releaseEverything() {
         keepReading = false
+
+        // The worker thread frees the speech models itself when it finishes.
+        // We only wait a moment so the screen doesn't freeze.
         worker?.join(500)
         worker = null
 
@@ -232,5 +432,6 @@ class CaptureService : Service() {
 
         running = false
         level = 0f
+        status = ""
     }
 }
