@@ -1,4 +1,23 @@
-# JP Subs (version 0.4.0: noise suppression)
+# JP Subs (version 0.4.1: better translation handling)
+
+## What is new in 0.4.1
+
+Your screenshots showed that almost every piece was cut at exactly the "longest piece" limit
+(2.0 s + 0.2 s padding on each side = 2.4 s). Sentences were chopped in the middle, and the
+translator was asked to translate half sentences, which is why it gave odd English.
+**This is mostly a settings problem, not only a translator problem.** Try: threshold 0.30,
+longest piece 5 to 6 s, pause 0.30 s. With noise suppression on, you no longer need 0.15.
+
+Code changes (translator only):
+- Spaces the recognizer puts inside sentences are removed before translating.
+- A full stop is added so ML Kit treats the text as a sentence.
+- If the English still contains Japanese letters (a translator failure), it retries once, and
+  if it fails again only the Japanese is shown instead of garbage.
+- Short reactions (えっと, はい, あはは, うわ ...) and leading filler words are handled by a small
+  table in `TranslationManager.kt`, which you can extend.
+
+---
+
 
 ![JP Subs icon](docs/app-icon.png)
 

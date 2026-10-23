@@ -75,13 +75,72 @@ object TranslationManager {
         }
     }
 
-    /** Blocking. Japanese in, English out. Gives back null if it fails or takes too long. */
-    fun translate(translator: Translator, japanese: String): String? {
+    // Short reactions that ML Kit often mangles ("えっと" became "Ghost"). We answer these
+    // ourselves. Add your own lines here: Japanese on the left, English on the right.
+    private val REACTIONS = mapOf(
+        "えっと" to "Um…", "えーと" to "Um…", "えーっと" to "Um…", "ええと" to "Um…",
+        "あのー" to "Um…", "あの" to "Um…", "まあ" to "Well…", "なんか" to "Like…",
+        "えっ" to "Huh?", "え" to "Huh?", "えー" to "Eh?", "ええ" to "Yeah", "うん" to "Yeah",
+        "はい" to "Yes", "ううん" to "Nope", "あー" to "Ah", "あ" to "Ah", "おー" to "Oh!",
+        "おお" to "Oh!", "うわ" to "Wow", "うわー" to "Wow", "あはは" to "Haha", "ははは" to "Haha",
+        "ふふ" to "Heh", "へー" to "Oh, really?", "ほう" to "Oh?", "ん" to "Hm?", "んー" to "Hmm…"
+    )
+
+    // Filler words at the very start of a sentence. We cut them off before translating,
+    // because they confuse the translator.
+    private val LEADING_FILLERS = listOf("えーっと", "えっと", "えーと", "ええと", "あのー", "あの、", "あのね", "まあ、")
+
+    /** True if the text still contains Japanese letters (hiragana, katakana or kanji). */
+    private fun hasJapanese(text: String): Boolean =
+        text.any { c ->
+            c in '぀'..'ヿ' || c in '一'..'鿿'
+        }
+
+    private fun runMlKit(translator: Translator, text: String): String? {
         return try {
-            Tasks.await(translator.translate(japanese), 3, TimeUnit.SECONDS)
+            Tasks.await(translator.translate(text), 3, TimeUnit.SECONDS)
         } catch (e: Exception) {
             Log.e(TAG, "Translation failed", e)
             null
         }
+    }
+
+    /**
+     * Blocking. Japanese in, English out. Gives back null if it fails or takes too long.
+     *
+     * Before ML Kit sees the text we tidy it (spaces removed, filler words handled, a full
+     * stop added so it treats the text as a sentence). If the answer still contains Japanese
+     * letters, the translator failed on this text, so we try once more in a simpler form and
+     * otherwise give back null (the screen then shows only the Japanese).
+     */
+    fun translate(translator: Translator, japanese: String): String? {
+        // 1. Remove spaces the recognizer sometimes puts between words.
+        var text = japanese.replace(" ", "").replace("　", "").trim()
+        if (text.isEmpty()) return null
+
+        // 2. Whole sentence is just a reaction: use our own table.
+        val bare = text.trimEnd('。', '、', '！', '？', '!', '?', '…', 'ー')
+        REACTIONS[text]?.let { return it }
+        REACTIONS[bare]?.let { return it }
+
+        // 3. Cut a leading filler word if something real follows it.
+        for (filler in LEADING_FILLERS) {
+            if (text.startsWith(filler) && text.length - filler.length >= 2) {
+                text = text.removePrefix(filler)
+                break
+            }
+        }
+
+        // 4. Translate with a full stop at the end (helps ML Kit treat it as a sentence).
+        val last = text.last()
+        val withStop = if (last in "。！？!?") text else "$text。"
+        var english = runMlKit(translator, withStop)
+
+        // 5. Japanese letters in the answer = failed. Retry once without the full stop.
+        if (english == null || hasJapanese(english)) {
+            english = runMlKit(translator, text)
+        }
+        if (english == null || hasJapanese(english)) return null
+        return english.trim()
     }
 }
