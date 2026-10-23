@@ -1,4 +1,6 @@
-# JP Subs (version 0.6.1: choose your recognizer)
+# JP Subs (version 0.6.2: choose your recognizer)
+
+**0.6.2:** the floating box now shrinks to fit its text (no wide empty black bar in landscape). Leaked control text and invented Chinese words from Qwen/Fun-ASR/Whisper are filtered out.
 
 **0.6.1:** fixes the build error in 0.6.0 (missing imports).
 
@@ -165,16 +167,16 @@ lets you change the important numbers **while the app is running**.
 
 ## How to update your repo from Termux
 
-Put the newest zip (for example `jpsubs-v0.6.1.zip`) in your Downloads folder, then run these one
+Put the newest zip (for example `jpsubs-v0.6.2.zip`) in your Downloads folder, then run these one
 at a time. **Change the version number in the first two lines to match the zip you downloaded**
 (the zip name is in Claude's message), and write whatever you like inside the quotes of the commit.
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-v0.6.1.zip -d jpsubs-milestone1
+unzip -o jpsubs-v0.6.2.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Update to 0.6.1"
+git commit -m "Update to 0.6.2"
 git push
 ```
 

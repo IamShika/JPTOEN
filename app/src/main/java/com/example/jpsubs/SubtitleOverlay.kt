@@ -80,8 +80,12 @@ class SubtitleOverlay(private val context: Context) {
         val (w, h) = currentScreenSize()
         screenW = w
         screenH = h
-        lp.width = (w * 0.9f).toInt()
-        lp.x = (w - lp.width) / 2
+        // The box is as wide as its text (up to 90% of the screen) and centred.
+        lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+        lp.x = 0
+        val maxTextWidth = (w * 0.9f).toInt() - (28 * context.resources.displayMetrics.density).toInt()
+        englishView?.maxWidth = maxTextWidth
+        japaneseView?.maxWidth = maxTextWidth
         val maxY = (h - b.height).coerceAtLeast(0)
         lp.y = (Settings.overlayYFraction * h).toInt().coerceIn(0, maxY)
         try {
@@ -164,9 +168,11 @@ class SubtitleOverlay(private val context: Context) {
         val (screenWidth, screenHeight) = currentScreenSize()
         screenW = screenWidth
         screenH = screenHeight
-        val width = (screenWidth * 0.9f).toInt()
+        val maxTextWidth = (screenWidth * 0.9f).toInt() - dp(28)
+        english.maxWidth = maxTextWidth
+        japanese.maxWidth = maxTextWidth
         val lp = WindowManager.LayoutParams(
-            width,
+            WindowManager.LayoutParams.WRAP_CONTENT, // as wide as the text
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             // Do not take focus (so the app underneath keeps working with the keyboard etc.)
@@ -174,8 +180,8 @@ class SubtitleOverlay(private val context: Context) {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = (screenWidth - width) / 2
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
             y = (Settings.overlayYFraction * screenHeight).toInt()
         }
 

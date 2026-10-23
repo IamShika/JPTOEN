@@ -321,7 +321,7 @@ class CaptureService : Service() {
             // Step 1: Japanese speech -> Japanese text
             val recognizeStart = SystemClock.elapsedRealtime()
             val japanese = try {
-                transcribe(recognizer, piece).trim()
+                cleanRecognized(transcribe(recognizer, piece).trim())
             } catch (t: Throwable) {
                 Log.e(TAG, "Recognition failed", t)
                 ""
@@ -396,6 +396,27 @@ class CaptureService : Service() {
             recognizerNote = " (${AsrModels.info(id).label} is not downloaded, using ReazonSpeech)"
         }
         return createReazonRecognizer()
+    }
+
+    /**
+     * Tidies the recognizer's text. The newer AI recognizers sometimes leak control words
+     * ("<|endoftext|>", "language Chinese", "###") or invent Chinese words for Japanese speech.
+     * Returns "" when nothing real is left, so the piece is dropped.
+     */
+    private fun cleanRecognized(raw: String): String {
+        var t = raw.replace(Regex("<\\|[^|>]*\\|>"), "").replace("###", "")
+        t = t.replace(Regex("^\\s*language\\s*[A-Za-z]+", RegexOption.IGNORE_CASE), "").trim()
+        if (t.none { it.isLetterOrDigit() }) return ""
+
+        // For these models, real Japanese always contains kana. Kanji with no kana is almost
+        // always an invented Chinese word.
+        val id = Settings.asrModel
+        if (id == "qwen3asr" || id == "funasr" || id == "whisper-small") {
+            val hasKana = t.any { it in '\u3040'..'\u30FF' }
+            val hasHan = t.any { it in '\u4E00'..'\u9FFF' }
+            if (!hasKana && hasHan) return ""
+        }
+        return t
     }
 
     /** Builds one of the optional recognizers from the files in its own folder. */

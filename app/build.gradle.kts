@@ -18,7 +18,7 @@ android {
         // GitHub numbers every build 1, 2, 3 ... so we use that number (plus 100, which is
         // higher than the versions you installed before).
         versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
-        versionName = "0.6.1"
+        versionName = "0.6.2"
 
         // Both your phones are 64-bit ARM, so we only ship that version of the
         // speech engine. It keeps the APK small.
