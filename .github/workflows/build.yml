@@ -103,6 +103,35 @@ jobs:
           ls -lh /tmp/gtcrn_simple.onnx
           gh release upload model-v1 /tmp/gtcrn_simple.onnx --repo "$GITHUB_REPOSITORY" --clobber
 
+      # ---------------------------------------------------------------------------
+      # Optional speech recognizers you can pick in the app's Settings. Each one is put on
+      # its own Releases page the first time (this takes a few minutes per model). If one
+      # fails, the others and the APK still build; check the step's log for the reason.
+      # ---------------------------------------------------------------------------
+      - name: Publish optional recognizer - SenseVoice (first run only)
+        continue-on-error: true # a problem here must never stop the APK from building
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/publish-asr-model.sh sensevoice
+
+      - name: Publish optional recognizer - Whisper small (first run only)
+        continue-on-error: true # a problem here must never stop the APK from building
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/publish-asr-model.sh whisper-small
+
+      - name: Publish optional recognizer - Qwen3-ASR (first run only)
+        continue-on-error: true # a problem here must never stop the APK from building
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/publish-asr-model.sh qwen3asr
+
+      - name: Publish optional recognizer - Fun-ASR Nano (first run only)
+        continue-on-error: true # a problem here must never stop the APK from building
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/publish-asr-model.sh funasr
+
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:

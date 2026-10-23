@@ -38,6 +38,8 @@ class SubtitleOverlay(private val context: Context) {
     private var japaneseView: TextView? = null
     private var params: WindowManager.LayoutParams? = null
 
+    private var screenW = 0
+    private var screenH = 0
     private var shownVersion = -1
     private var lastChangeTime = 0L
     private var started = false
@@ -61,6 +63,31 @@ class SubtitleOverlay(private val context: Context) {
         started = false
         handler.removeCallbacks(tick)
         removeBox()
+    }
+
+    /** Real screen size right now (changes when the phone is rotated). */
+    @Suppress("DEPRECATION")
+    private fun currentScreenSize(): Pair<Int, Int> {
+        val dm = android.util.DisplayMetrics()
+        windowManager.defaultDisplay.getRealMetrics(dm)
+        return Pair(dm.widthPixels, dm.heightPixels)
+    }
+
+    /** Puts the box back inside the screen after a rotation (or when it is first shown). */
+    private fun fitToScreen() {
+        val b = box ?: return
+        val lp = params ?: return
+        val (w, h) = currentScreenSize()
+        screenW = w
+        screenH = h
+        lp.width = (w * 0.9f).toInt()
+        lp.x = (w - lp.width) / 2
+        val maxY = (h - b.height).coerceAtLeast(0)
+        lp.y = (Settings.overlayYFraction * h).toInt().coerceIn(0, maxY)
+        try {
+            windowManager.updateViewLayout(b, lp)
+        } catch (_: Exception) {
+        }
     }
 
     private fun update() {
@@ -90,6 +117,12 @@ class SubtitleOverlay(private val context: Context) {
                 box?.visibility = View.VISIBLE
                 lastChangeTime = System.currentTimeMillis()
             }
+        }
+
+        // Did the phone rotate? Then move the box so it is not off the screen.
+        if (box != null) {
+            val (w, h) = currentScreenSize()
+            if (w != screenW || h != screenH) fitToScreen()
         }
 
         // Hide after a while without new speech.
@@ -128,7 +161,10 @@ class SubtitleOverlay(private val context: Context) {
             addView(japanese)
         }
 
-        val width = (context.resources.displayMetrics.widthPixels * 0.9f).toInt()
+        val (screenWidth, screenHeight) = currentScreenSize()
+        screenW = screenWidth
+        screenH = screenHeight
+        val width = (screenWidth * 0.9f).toInt()
         val lp = WindowManager.LayoutParams(
             width,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -139,8 +175,8 @@ class SubtitleOverlay(private val context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = (context.resources.displayMetrics.widthPixels - width) / 2
-            y = Settings.overlayY
+            x = (screenWidth - width) / 2
+            y = (Settings.overlayYFraction * screenHeight).toInt()
         }
 
         // Drag with a finger to move the box up or down (and sideways).
@@ -167,7 +203,7 @@ class SubtitleOverlay(private val context: Context) {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    Settings.overlayY = lp.y
+                    Settings.overlayYFraction = (lp.y.toFloat() / screenH).coerceIn(0f, 0.95f)
                     Settings.save(context)
                     true
                 }

@@ -66,6 +66,7 @@ object ModelManager {
     fun refresh(context: Context) {
         val dir = modelDir(context)
         ready = FILES.all { (name, _) -> File(dir, name).let { it.exists() && it.length() > 0 } }
+        AsrModels.refresh(context)
         TranslationManager.refresh() // the answer arrives a moment later
     }
 
@@ -120,10 +121,12 @@ object ModelManager {
      * Downloads one file. It is first saved as "name.part" and only renamed to
      * "name" when complete, so a half-finished file is never mistaken for a good one.
      */
-    private fun downloadOne(
+    internal fun downloadOne(
         dir: File,
         name: String,
         allowResume: Boolean = true,
+        baseUrl: String = BuildConfig.MODEL_BASE_URL,
+        assetName: String = name,
         onProgress: (Float) -> Unit,
     ) {
         val target = File(dir, name)
@@ -136,7 +139,7 @@ object ModelManager {
         val alreadyHave = if (allowResume && part.exists()) part.length() else 0L
         if (!allowResume) part.delete()
 
-        val connection = URL(BuildConfig.MODEL_BASE_URL + name).openConnection() as HttpURLConnection
+        val connection = URL(baseUrl + assetName).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = 20_000
             connection.readTimeout = 30_000
@@ -152,12 +155,12 @@ object ModelManager {
                 // Our partial file doesn't fit the server's file. Start over once.
                 part.delete()
                 connection.disconnect()
-                downloadOne(dir, name, allowResume = false, onProgress = onProgress)
+                downloadOne(dir, name, allowResume = false, baseUrl = baseUrl, assetName = assetName, onProgress = onProgress)
                 return
             }
             if (code == 404) {
                 throw IOException(
-                    "$name was not found on your GitHub Releases page. " +
+                    "$assetName was not found on your GitHub Releases page. " +
                         "Check that the GitHub build finished and the repo is public"
                 )
             }

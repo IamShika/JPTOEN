@@ -21,7 +21,10 @@ import android.text.style.StyleSpan
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.ProgressBar
+import android.widget.Spinner
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -53,6 +56,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsPanel: View
     private lateinit var debugCheck: CheckBox
     private lateinit var overlayCheck: CheckBox
+    private lateinit var asrSpinner: Spinner
+    private lateinit var asrNote: TextView
+    private lateinit var asrBar: ProgressBar
+    private lateinit var asrButton: Button
+    private var asrSignature = "" // remembers what the dropdown shows, so we only rebuild it when needed
     private lateinit var overlayJpCheck: CheckBox
     private lateinit var denoiseCheck: CheckBox
     private lateinit var denoiseAsrCheck: CheckBox
@@ -146,6 +154,10 @@ class MainActivity : ComponentActivity() {
         settingsPanel = findViewById(R.id.settingsPanel)
         debugCheck = findViewById(R.id.debugCheck)
         overlayCheck = findViewById(R.id.overlayCheck)
+        asrSpinner = findViewById(R.id.asrSpinner)
+        asrNote = findViewById(R.id.asrNote)
+        asrBar = findViewById(R.id.asrBar)
+        asrButton = findViewById(R.id.asrButton)
         overlayJpCheck = findViewById(R.id.overlayJpCheck)
         denoiseCheck = findViewById(R.id.denoiseCheck)
         denoiseAsrCheck = findViewById(R.id.denoiseAsrCheck)
@@ -211,6 +223,29 @@ class MainActivity : ComponentActivity() {
         debugCheck.setOnCheckedChangeListener { _, checked ->
             Settings.showDebug = checked
             Settings.save(this)
+        }
+
+        // Choosing a speech recognizer, downloading it, deleting it.
+        asrSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val picked = AsrModels.ALL[position].id
+                if (picked != Settings.asrModel) {
+                    Settings.asrModel = picked
+                    Settings.save(this@MainActivity)
+                }
+                refreshAsrPanel()
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        asrButton.setOnClickListener {
+            val info = AsrModels.info(Settings.asrModel)
+            if (AsrModels.isInstalled(info.id)) {
+                if (info.release != null) AsrModels.delete(this, info.id)
+            } else {
+                AsrModels.download(this, info.id)
+            }
+            refreshAsrPanel()
         }
 
         // Floating subtitles. Android makes the person allow "Display over other apps"
@@ -295,6 +330,46 @@ class MainActivity : ComponentActivity() {
     private fun describeSlider(slider: Slider, value: Float): String =
         slider.title + ": " + String.format(Locale.US, "%.${slider.decimals}f", value) + slider.unit
 
+    /** Updates the recognizer dropdown, its description and the download / delete button. */
+    private fun refreshAsrPanel() {
+        val models = AsrModels.ALL
+        val installed = AsrModels.installed
+
+        // Rebuild the dropdown only when something changed (so it does not flicker or close).
+        val signature = models.joinToString("|") { it.id + installed.contains(it.id) } + Settings.asrModel
+        if (signature != asrSignature) {
+            asrSignature = signature
+            val labels = models.map { it.label + if (installed.contains(it.id)) "  (downloaded)" else "" }
+            asrSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
+            asrSpinner.setSelection(models.indexOfFirst { it.id == Settings.asrModel }.coerceAtLeast(0), false)
+        }
+
+        val info = AsrModels.info(Settings.asrModel)
+        val busy = AsrModels.busyId
+        asrNote.text = info.note + if (AsrModels.message.isNotEmpty()) "\n" + AsrModels.message else ""
+        asrBar.visibility = if (busy != null) View.VISIBLE else View.GONE
+        asrBar.progress = (AsrModels.progress * 100).toInt()
+
+        when {
+            busy != null -> {
+                asrButton.isEnabled = false
+                asrButton.text = getString(R.string.btn_downloading)
+            }
+            AsrModels.isInstalled(info.id) && info.release == null -> {
+                asrButton.isEnabled = false
+                asrButton.text = "Built in (cannot be deleted)"
+            }
+            AsrModels.isInstalled(info.id) -> {
+                asrButton.isEnabled = true
+                asrButton.text = "Delete this model (frees about ${info.totalMb.toInt()} MB)"
+            }
+            else -> {
+                asrButton.isEnabled = ModelManager.state != ModelManager.State.DOWNLOADING
+                asrButton.text = "Download (about ${info.totalMb.toInt()} MB)"
+            }
+        }
+    }
+
     /** Moves every slider to the value stored in Settings. */
     private fun refreshSettingsPanel() {
         for (s in sliders) {
@@ -303,6 +378,7 @@ class MainActivity : ComponentActivity() {
             s.label.text = describeSlider(s, value)
         }
         debugCheck.isChecked = Settings.showDebug
+        refreshAsrPanel()
         overlayCheck.isChecked = Settings.overlayEnabled
         overlayJpCheck.isChecked = Settings.overlayShowJapanese
         denoiseCheck.isChecked = Settings.denoise
@@ -372,6 +448,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshScreen() {
         val running = CaptureService.running
         val modelReady = ModelManager.allReady // speech model AND translation model
+        refreshAsrPanel() // keeps the recognizer download progress moving
 
         // --- volume bar: level goes from 0.0 to 1.0, the bar goes from 0 to 100
         levelBar.progress = if (running) (CaptureService.level * 100).toInt() else 0

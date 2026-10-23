@@ -1,4 +1,21 @@
-# JP Subs (version 0.5.0: floating subtitles)
+# JP Subs (version 0.6.0: choose your recognizer)
+
+## What is new in 0.6.0
+
+1. **The floating box follows rotation.** Its position is now stored as a fraction of the screen,
+   so after rotating it stays on screen (it re-centres sideways). Drag it again if you want.
+2. **Pick the speech recognizer** in Settings > "Speech recognizer". Five are listed:
+   ReazonSpeech (built in), SenseVoice (~230 MB), Whisper small (~370 MB), Qwen3-ASR 0.6B (~940 MB),
+   Fun-ASR Nano (~950 MB). Each has its own **Download** and **Delete** button, and the choice takes
+   effect the next time you tap Start. If the chosen model is not downloaded, the app falls back
+   to ReazonSpeech and says so in the status line.
+3. The first GitHub build after this update downloads each model from the sherpa-onnx project and
+   puts it on your Releases page (a few minutes each). If one of those steps fails, the APK still
+   builds; open that step in Actions and send Claude the log.
+
+Translators: still Google ML Kit for all recognizers. Better translators are the next step.
+
+## 0.5.0
 
 ## What is new in 0.5.0 (Milestone 4)
 

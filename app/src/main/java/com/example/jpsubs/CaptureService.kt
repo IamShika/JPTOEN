@@ -85,6 +85,10 @@ class CaptureService : Service() {
     private var worker: Thread? = null
     private var overlay: SubtitleOverlay? = null
 
+    /** Shown in the status line, e.g. which recognizer is in use. */
+    @Volatile
+    private var recognizerNote = ""
+
     @Volatile
     private var keepReading = false
 
@@ -225,7 +229,7 @@ class CaptureService : Service() {
 
             if (!keepReading) return // the person pressed Stop while we were loading
 
-            status = "Listening…$translatorNote"
+            status = "Listening…$recognizerNote$translatorNote"
             record.startRecording()
 
             // Thread 2: turns waiting speech into text, then into English.
@@ -376,7 +380,78 @@ class CaptureService : Service() {
         }
     }
 
+    /** The recognizer the person picked in Settings (falls back to ReazonSpeech). */
     private fun createRecognizer(): OfflineRecognizer {
+        AsrModels.refresh(this)
+        val id = Settings.asrModel
+        if (id != AsrModels.DEFAULT_ID) {
+            if (AsrModels.isInstalled(id)) {
+                recognizerNote = " (recognizer: ${AsrModels.info(id).label})"
+                return createOptionalRecognizer(id)
+            }
+            recognizerNote = " (${AsrModels.info(id).label} is not downloaded, using ReazonSpeech)"
+        }
+        return createReazonRecognizer()
+    }
+
+    /** Builds one of the optional recognizers from the files in its own folder. */
+    private fun createOptionalRecognizer(id: String): OfflineRecognizer {
+        fun p(local: String) = AsrModels.path(this, id, local)
+        val model = when (id) {
+            "sensevoice" -> OfflineModelConfig(
+                senseVoice = OfflineSenseVoiceModelConfig(
+                    model = p("model.int8.onnx"),
+                    language = "ja",
+                    useInverseTextNormalization = true,
+                ),
+                tokens = p("tokens.txt"),
+                numThreads = Tuning.RECOGNIZER_THREADS,
+                provider = "cpu",
+            )
+            "whisper-small" -> OfflineModelConfig(
+                whisper = OfflineWhisperModelConfig(
+                    encoder = p("encoder.onnx"),
+                    decoder = p("decoder.onnx"),
+                    language = "ja",
+                    task = "transcribe",
+                ),
+                tokens = p("tokens.txt"),
+                numThreads = Tuning.RECOGNIZER_THREADS,
+                provider = "cpu",
+            )
+            "qwen3asr" -> OfflineModelConfig(
+                qwen3Asr = OfflineQwen3AsrModelConfig(
+                    convFrontend = p("conv_frontend.onnx"),
+                    encoder = p("encoder.int8.onnx"),
+                    decoder = p("decoder.int8.onnx"),
+                    tokenizer = AsrModels.folder(this, id).absolutePath + "/tokenizer",
+                    maxTotalLen = 512,
+                    maxNewTokens = 128,
+                ),
+                numThreads = 3,
+                provider = "cpu",
+            )
+            "funasr" -> OfflineModelConfig(
+                funasrNano = OfflineFunAsrNanoModelConfig(
+                    encoderAdaptor = p("encoder_adaptor.int8.onnx"),
+                    llm = p("llm.int8.onnx"),
+                    embedding = p("embedding.int8.onnx"),
+                    tokenizer = AsrModels.folder(this, id).absolutePath + "/tokenizer",
+                ),
+                numThreads = 3,
+                provider = "cpu",
+            )
+            else -> throw IllegalArgumentException("Unknown recognizer: $id")
+        }
+        val config = OfflineRecognizerConfig(
+            featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
+            modelConfig = model,
+            decodingMethod = "greedy_search",
+        )
+        return OfflineRecognizer(assetManager = null, config = config)
+    }
+
+    private fun createReazonRecognizer(): OfflineRecognizer {
         val config = OfflineRecognizerConfig(
             featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
             modelConfig = OfflineModelConfig(

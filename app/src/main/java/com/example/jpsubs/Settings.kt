@@ -48,8 +48,12 @@ object Settings {
     /** How many seconds the floating box stays after the last new line. */
     @Volatile var overlaySeconds: Int = 6
 
-    /** Distance (pixels) of the floating box from the top of the screen. */
-    @Volatile var overlayY: Int = 120
+    /** Where the floating box sits, as a fraction of the screen height (0 = top, 1 = bottom).
+     *  A fraction (not pixels) so it stays on screen when the phone is rotated. */
+    @Volatile var overlayYFraction: Float = 0.12f
+
+    /** Which speech recognizer is used (an id from AsrModels). */
+    @Volatile var asrModel: String = AsrModels.DEFAULT_ID
 
     /** Show the debug lines under the Start button. */
     @Volatile var showDebug: Boolean = true
@@ -76,7 +80,8 @@ object Settings {
         overlayEnabled = p.getBoolean("overlayEnabled", false)
         overlayShowJapanese = p.getBoolean("overlayShowJapanese", true)
         overlaySeconds = p.getInt("overlaySeconds", 6)
-        overlayY = p.getInt("overlayY", 120)
+        overlayYFraction = p.getFloat("overlayYFraction", 0.12f)
+        asrModel = p.getString("asrModel", AsrModels.DEFAULT_ID) ?: AsrModels.DEFAULT_ID
     }
 
     /** Saves the current values to the phone's storage. */
@@ -95,7 +100,8 @@ object Settings {
             .putBoolean("overlayEnabled", overlayEnabled)
             .putBoolean("overlayShowJapanese", overlayShowJapanese)
             .putInt("overlaySeconds", overlaySeconds)
-            .putInt("overlayY", overlayY)
+            .putFloat("overlayYFraction", overlayYFraction)
+            .putString("asrModel", asrModel)
             .apply()
     }
 
