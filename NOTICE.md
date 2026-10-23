@@ -7,6 +7,12 @@ unchanged from https://github.com/k2-fsa/sherpa-onnx at tag v1.13.8. The compile
 libraries of the same version are downloaded at build time. Copyright the sherpa-onnx authors.
 License: https://github.com/k2-fsa/sherpa-onnx/blob/master/LICENSE
 
+## Google ML Kit Translation
+
+On-device translation (`com.google.mlkit:translate`). Used under the ML Kit terms:
+https://developers.google.com/ml-kit/terms
+Its language models are downloaded by ML Kit from Google.
+
 ## Speech models
 
 Downloaded by the app on first use, repackaged from the sherpa-onnx model releases:

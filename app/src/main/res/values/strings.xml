@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">JP Subs</string>
-    <string name="subtitle">Milestone 2: Japanese speech to text</string>
+    <string name="subtitle">Milestone 3: Japanese to English</string>
 
     <string name="btn_start">Start listening</string>
     <string name="btn_stop">Stop</string>
 
-    <string name="btn_download">Download Japanese model (about 155 MB)</string>
+    <string name="btn_download">Download models (about 185 MB)</string>
+    <string name="btn_download_translation">Download translation model (about 30 MB)</string>
     <string name="btn_downloading">Downloading…</string>
     <string name="btn_retry">Retry download</string>
 
-    <string name="status_need_model">Step 1: download the speech model. You only do this once. Wi-Fi is recommended.</string>
+    <string name="status_need_model">Step 1: download the speech and translation models. You only do this once. Wi-Fi is recommended.</string>
     <string name="status_idle">Ready. Tap Start, then play a Japanese video or stream in another app.</string>
     <string name="status_no_permission">Microphone permission was denied. Android needs it to capture playback audio. Tap Start and allow it.</string>
     <string name="status_capture_denied">Screen capture request was cancelled. Tap Start and choose \"Start now\".</string>
 
-    <string name="transcript_empty">Japanese text will appear here.</string>
+    <string name="transcript_empty">English subtitles (with the Japanese underneath) will appear here.</string>
     <string name="notif_text">Listening to phone audio</string>
-    <string name="hint">Tip: text appears a second or two after someone stops talking. You can long-press the text to copy it into a translator.</string>
+    <string name="hint">Tip: text appears a second or two after someone stops talking. You can long-press the text to copy it.</string>
 </resources>

@@ -25,6 +25,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import com.google.mlkit.nl.translate.Translator
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
@@ -42,19 +43,21 @@ import kotlin.math.sqrt
 /**
  * A "foreground service" keeps running while you are in another app (like YouTube).
  *
- * The pipeline inside it (Milestone 2):
+ * The pipeline inside it:
  *
- *   phone audio --> [voice detector] --> pieces of speech --> [Japanese recognizer] --> text
+ *   phone audio --> [voice detector] --> pieces of speech --> [Japanese recognizer]
+ *       --> Japanese text --> [translator] --> English text
  *
  *  - The voice detector (Silero VAD) cuts the audio into sentences by finding pauses.
  *  - The recognizer (ReazonSpeech zipformer, run by sherpa-onnx) turns each sentence into text.
- *  - The text goes into `Transcript`, which the screen displays.
+ *  - The translator (Google ML Kit, on the phone) turns the Japanese into English.
+ *  - Both texts go into `Transcript`, which the screen displays.
  *
  * Two threads work at once: one keeps reading audio (it must never stall, or sound is lost),
- * and one does the slow recognition work.
+ * and one does the slow recognition and translation work.
  *
- * LATER MILESTONES: the place marked "FUTURE HOOK" is where the text will be sent to
- * the translator (Milestone 3) and then to the floating subtitles (Milestone 4).
+ * LATER MILESTONE: the place marked "FUTURE HOOK" is where the English text will also be
+ * sent to the floating subtitles (Milestone 4).
  */
 class CaptureService : Service() {
 
@@ -191,6 +194,7 @@ class CaptureService : Service() {
     private fun runPipeline(record: AudioRecord) {
         var vad: Vad? = null
         var recognizer: OfflineRecognizer? = null
+        var translator: Translator? = null
         var decoderThread: Thread? = null
 
         // Pieces of speech wait here for the recognizer.
@@ -203,13 +207,25 @@ class CaptureService : Service() {
             val loadedRecognizer = createRecognizer()
             recognizer = loadedRecognizer
 
+            // The translator is optional: if it fails we still show the Japanese text.
+            var translatorNote = ""
+            try {
+                translator = TranslationManager.openTranslator()
+            } catch (e: Exception) {
+                Log.e(TAG, "Translator unavailable", e)
+                translatorNote = " (translation unavailable: ${e.message})"
+            }
+            val loadedTranslator = translator
+
             if (!keepReading) return // the person pressed Stop while we were loading
 
-            status = "Listening…"
+            status = "Listening…$translatorNote"
             record.startRecording()
 
-            // Thread 2: turns waiting speech into text.
-            decoderThread = thread(name = "asr-decode") { decodeLoop(loadedRecognizer, waiting) }
+            // Thread 2: turns waiting speech into text, then into English.
+            decoderThread = thread(name = "asr-decode") {
+                decodeLoop(loadedRecognizer, loadedTranslator, waiting)
+            }
 
             // Thread 1 (this one): reads audio and finds the sentences.
             val buffer = ShortArray(SAMPLE_RATE / 10) // 100 milliseconds of sound
@@ -252,40 +268,54 @@ class CaptureService : Service() {
             }
             recognizer?.release()
             vad?.release()
+            translator?.close()
         }
     }
 
-    /** Runs on its own thread: takes speech pieces off the queue and recognizes them. */
-    private fun decodeLoop(recognizer: OfflineRecognizer, waiting: LinkedBlockingQueue<FloatArray>) {
+    /**
+     * Runs on its own thread: takes speech pieces off the queue, recognizes the
+     * Japanese, translates it, and writes both into the Transcript.
+     */
+    private fun decodeLoop(
+        recognizer: OfflineRecognizer,
+        translator: Translator?,
+        waiting: LinkedBlockingQueue<FloatArray>,
+    ) {
         while (true) {
             val piece = waiting.take() // sleeps until something arrives
             if (piece.isEmpty()) break
 
-            val startedAt = SystemClock.elapsedRealtime()
-            val text = try {
-                transcribe(recognizer, piece)
+            // Step 1: Japanese speech -> Japanese text
+            val recognizeStart = SystemClock.elapsedRealtime()
+            val japanese = try {
+                transcribe(recognizer, piece).trim()
             } catch (t: Throwable) {
                 Log.e(TAG, "Recognition failed", t)
                 ""
             }
-            val tookSeconds = (SystemClock.elapsedRealtime() - startedAt) / 1000.0
-            val audioSeconds = piece.size / SAMPLE_RATE.toDouble()
+            val recognizeSeconds = (SystemClock.elapsedRealtime() - recognizeStart) / 1000.0
+
+            // Ignore empty results and one-letter noises like "え".
+            if (japanese.length < Tuning.MIN_CHARACTERS) continue
+
+            // Step 2: Japanese text -> English text (stays null if no translator)
+            val translateStart = SystemClock.elapsedRealtime()
+            val english = translator?.let { TranslationManager.translate(it, japanese) }
+            val translateSeconds = (SystemClock.elapsedRealtime() - translateStart) / 1000.0
 
             stats = String.format(
                 Locale.US,
-                "Last piece: %.1f s of speech, recognized in %.1f s (%d waiting)",
-                audioSeconds, tookSeconds, waiting.size
+                "Last piece: %.1f s of speech, recognized in %.2f s, translated in %.2f s (%d waiting)",
+                piece.size / SAMPLE_RATE.toDouble(), recognizeSeconds, translateSeconds, waiting.size
             )
 
-            if (text.isNotBlank()) {
-                Transcript.add(text.trim())
+            Transcript.add(japanese, english)
 
-                // FUTURE HOOK: Milestone 3 will send `text` to the translator here.
-            }
+            // FUTURE HOOK: Milestone 4 will also send `english` to the floating subtitles here.
         }
     }
 
-    /** One piece of speech in, Japanese text out. */
+    /** One piece of speech in, Japanese text out (no translation yet). */
     private fun transcribe(recognizer: OfflineRecognizer, samples: FloatArray): String {
         val stream = recognizer.createStream()
         try {

@@ -21,6 +21,10 @@ object Tuning {
     // Smaller = lower delay. Bigger = the recognizer sees more context.
     const val MAX_SPEECH_SECONDS = 6.0f
 
+    // Pieces with fewer characters than this are thrown away. It hides one-letter
+    // noises like "え" or "あ" that would otherwise clutter the subtitles.
+    const val MIN_CHARACTERS = 2
+
     // How many CPU threads the recognizer may use. 2 is safe on both of your phones.
     const val RECOGNIZER_THREADS = 2
 

@@ -46,7 +46,14 @@ object ModelManager {
     @Volatile var state: State = State.IDLE
     @Volatile var progress: Float = 0f // 0.0 to 1.0
     @Volatile var message: String = ""
-    @Volatile var ready: Boolean = false
+    @Volatile var ready: Boolean = false // the speech files are on the phone
+
+    /** Rough size of the translation model in MB, used only for the progress bar. */
+    private const val TRANSLATION_MB = 30.0
+
+    /** True when BOTH the speech model and the translation model are installed. */
+    val allReady: Boolean
+        get() = ready && TranslationManager.ready
 
     fun modelDir(context: Context): File = File(context.filesDir, "models")
 
@@ -57,6 +64,7 @@ object ModelManager {
     fun refresh(context: Context) {
         val dir = modelDir(context)
         ready = FILES.all { (name, _) -> File(dir, name).let { it.exists() && it.length() > 0 } }
+        TranslationManager.refresh() // the answer arrives a moment later
     }
 
     /** Starts the download on a background thread. Does nothing if one is already running. */
@@ -78,7 +86,7 @@ object ModelManager {
 
         thread(name = "model-download") {
             try {
-                val totalMb = FILES.sumOf { it.second }
+                val totalMb = FILES.sumOf { it.second } + TRANSLATION_MB
                 var doneMb = 0.0
                 for ((name, mb) in FILES) {
                     downloadOne(dir, name) { fractionOfThisFile ->
@@ -87,6 +95,13 @@ object ModelManager {
                     }
                     doneMb += mb
                 }
+
+                // Last step: the translation model, which Google's ML Kit downloads for us.
+                progress = (doneMb / totalMb).toFloat()
+                message = "Downloading the translation model (about 30 MB)…"
+                TranslationManager.downloadModels()
+
+                progress = 1f
                 refresh(appContext)
                 state = State.IDLE
                 message = ""
