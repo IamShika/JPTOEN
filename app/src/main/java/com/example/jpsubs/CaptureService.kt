@@ -31,9 +31,6 @@ import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineTransducerModelConfig
-import com.k2fsa.sherpa.onnx.SileroVadModelConfig
-import com.k2fsa.sherpa.onnx.Vad
-import com.k2fsa.sherpa.onnx.VadModelConfig
 import java.util.Locale
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.concurrent.thread
@@ -45,10 +42,11 @@ import kotlin.math.sqrt
  *
  * The pipeline inside it:
  *
- *   phone audio --> [voice detector] --> pieces of speech --> [Japanese recognizer]
- *       --> Japanese text --> [translator] --> English text
+ *   phone audio --> [noise suppression] --> [voice detector] --> pieces of speech
+ *       --> [Japanese recognizer] --> Japanese text --> [translator] --> English text
  *
- *  - The voice detector (Silero VAD) cuts the audio into sentences by finding pauses.
+ *  - The first two steps live in FrontEnd.kt: noise suppression (optional) and the voice
+ *    detector (Silero VAD), which cuts the audio into sentences by finding pauses.
  *  - The recognizer (ReazonSpeech zipformer, run by sherpa-onnx) turns each sentence into text.
  *  - The translator (Google ML Kit, on the phone) turns the Japanese into English.
  *  - Both texts go into `Transcript`, which the screen displays.
@@ -194,7 +192,7 @@ class CaptureService : Service() {
     // ---------------------------------------------------------------------------------------
 
     private fun runPipeline(record: AudioRecord) {
-        var vad: Vad? = null
+        var frontEnd: FrontEnd? = null
         var recognizer: OfflineRecognizer? = null
         var translator: Translator? = null
         var decoderThread: Thread? = null
@@ -204,8 +202,6 @@ class CaptureService : Service() {
 
         try {
             // Loading takes a few seconds (the model is about 150 MB).
-            val loadedVad = createVad()
-            vad = loadedVad
             val loadedRecognizer = createRecognizer()
             recognizer = loadedRecognizer
 
@@ -219,6 +215,10 @@ class CaptureService : Service() {
             }
             val loadedTranslator = translator
 
+            // The front end = noise suppression + voice detector (see FrontEnd.kt).
+            val loadedFrontEnd = FrontEnd(this)
+            frontEnd = loadedFrontEnd
+
             if (!keepReading) return // the person pressed Stop while we were loading
 
             status = "Listening…$translatorNote"
@@ -231,24 +231,12 @@ class CaptureService : Service() {
 
             // Thread 1 (this one): reads audio and finds the sentences.
             val buffer = ShortArray(SAMPLE_RATE / 10) // 100 milliseconds of sound
-
-            var activeVad = loadedVad
-            var seenSettingsVersion = Settings.version
             var hearingSince = 0L // when the detector started hearing speech (0 = not hearing)
 
             while (keepReading) {
-                // Did the person move a detector slider? Then build a fresh detector.
-                if (Settings.version != seenSettingsVersion) {
-                    seenSettingsVersion = Settings.version
-                    try {
-                        val fresh = createVad()
-                        activeVad.release()
-                        activeVad = fresh
-                        vad = fresh // so the cleanup at the end frees the right one
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Could not rebuild the voice detector", e)
-                    }
-                }
+                // Did the person change a detector setting? Then rebuild the front end.
+                // (The very first time round, this builds it.)
+                loadedFrontEnd.applySettingsIfChanged()
 
                 val count = record.read(buffer, 0, buffer.size)
                 if (count > 0) {
@@ -258,11 +246,13 @@ class CaptureService : Service() {
                     // `gain` makes quiet audio louder (clamped so it can't go past the limits).
                     val gain = Settings.gain
                     val samples = FloatArray(count) { (buffer[it] / 32768f * gain).coerceIn(-1f, 1f) }
-                    activeVad.acceptWaveform(samples)
+
+                    // Noise suppression, voice detector, padding. Out come finished sentences.
+                    val pieces = loadedFrontEnd.feed(samples)
 
                     // For the debug lines: is the detector hearing speech right now, and for how long?
                     val now = SystemClock.elapsedRealtime()
-                    if (activeVad.isSpeechDetected()) {
+                    if (loadedFrontEnd.isHearingSpeech()) {
                         if (hearingSince == 0L) hearingSince = now
                         DebugInfo.detector = String.format(
                             Locale.US, "Detector: hearing speech for %.1f s", (now - hearingSince) / 1000.0
@@ -272,10 +262,7 @@ class CaptureService : Service() {
                         DebugInfo.detector = "Detector: quiet"
                     }
 
-                    // Did the voice detector finish any sentences?
-                    while (!activeVad.empty()) {
-                        val piece = activeVad.front().samples
-                        activeVad.pop()
+                    for (piece in pieces) {
                         enqueue(waiting, piece)
                     }
                 } else if (count < 0) {
@@ -301,7 +288,7 @@ class CaptureService : Service() {
                 // we are shutting down anyway
             }
             recognizer?.release()
-            vad?.release()
+            frontEnd?.release()
             translator?.close()
         }
     }
@@ -383,25 +370,6 @@ class CaptureService : Service() {
         if (skipped) {
             Transcript.add("(skipped some speech: the phone could not keep up)")
         }
-    }
-
-    private fun createVad(): Vad {
-        val config = VadModelConfig(
-            sileroVadModelConfig = SileroVadModelConfig(
-                model = ModelManager.path(this, ModelManager.VAD_FILE),
-                threshold = Settings.vadThreshold,
-                minSilenceDuration = Settings.minSilenceSeconds,
-                minSpeechDuration = Tuning.MIN_SPEECH_SECONDS,
-                windowSize = 512,
-                maxSpeechDuration = Settings.maxSpeechSeconds,
-            ),
-            sampleRate = SAMPLE_RATE,
-            numThreads = 1,
-            provider = "cpu",
-            debug = false,
-        )
-        // assetManager = null means "load from normal files", not from inside the APK.
-        return Vad(assetManager = null, config = config)
     }
 
     private fun createRecognizer(): OfflineRecognizer {

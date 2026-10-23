@@ -16,6 +16,10 @@ object DebugInfo {
     @Volatile
     var detector: String = ""
 
+    /** Whether noise suppression is running. */
+    @Volatile
+    var frontEnd: String = ""
+
     private const val RECENT_COUNT = 8
 
     private var queued = 0
@@ -23,11 +27,18 @@ object DebugInfo {
     private var empty = 0
     private var tooShort = 0
     private var skipped = 0
+    private var mappedOk = 0
+    private var mappedMismatch = 0
+    private var mappedUnavailable = 0
     private val recent = ArrayDeque<String>()
 
     @Synchronized
     fun reset() {
         detector = ""
+        frontEnd = ""
+        mappedOk = 0
+        mappedMismatch = 0
+        mappedUnavailable = 0
         queued = 0
         withText = 0
         empty = 0
@@ -40,6 +51,19 @@ object DebugInfo {
     @Synchronized
     fun onQueued() {
         queued++
+    }
+
+    /**
+     * Result of fitting padded audio around a piece: "ok", "mismatch" or "unavailable".
+     * Anything other than "ok" means that piece was sent without padding.
+     */
+    @Synchronized
+    fun onMapping(kind: String) {
+        when (kind) {
+            "ok" -> mappedOk++
+            "mismatch" -> mappedMismatch++
+            else -> mappedUnavailable++
+        }
     }
 
     /** A piece was thrown away because the phone could not keep up. */
@@ -67,6 +91,8 @@ object DebugInfo {
     fun summary(): String {
         val counts = "Pieces: $queued sent, $withText with text, $empty empty, " +
             "$tooShort too short, $skipped skipped"
-        return if (recent.isEmpty()) counts else counts + "\nRecent: " + recent.joinToString(" | ")
+        val padding = "Padding: $mappedOk ok, $mappedMismatch mismatch, $mappedUnavailable unavailable"
+        val head = frontEnd + "\n" + counts + "\n" + padding
+        return if (recent.isEmpty()) head else head + "\nRecent: " + recent.joinToString(" | ")
     }
 }

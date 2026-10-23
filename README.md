@@ -1,8 +1,51 @@
-# JP Subs (version 0.3.2: easier updates and an app icon)
+# JP Subs (version 0.4.0: noise suppression)
 
 ![JP Subs icon](docs/app-icon.png)
 
-## What is new in 0.3.2
+## What is new in 0.4.0
+
+Some words were being missed. Two things can cause that, and this version addresses both.
+
+**1. Noise suppression for the voice detector.** The audio is cleaned (GTCRN, a very small noise
+removal model that runs in the speech engine the app already contains) before the voice detector
+listens to it, so background noise is less likely to fool it or hide a voice.
+By default the **recognizer still gets the original audio**, not the cleaned one. Noise removal can
+leave small distortions that confuse a speech recognizer, so the safe design is to clean the audio
+only for the part that decides *where* sentences are. There is a checkbox to test the cleaned audio
+for the recognizer as well.
+
+**2. Padding.** The detector sometimes starts a sentence a moment late or ends it a moment early,
+which clips the first or last sound of a word. Now each piece is given 0.2 s of extra audio on
+both sides (adjustable). Pieces that were cut only because they hit the maximum length are not
+padded at the end, so the same words are not repeated.
+
+Also new: a "Shortest sound counted as speech" slider (short words like はい can be thrown away by the
+detector), and new debug lines for noise suppression and padding.
+
+**Why not RNNoise?** RNNoise is a good noise remover, but the repo you linked is a desktop
+plug-in built on it. On Android it would have to be compiled as native code, which is a bigger and
+riskier change to build blind. The speech engine already contains a similar noise remover, so
+that is tried first. If it is not good enough, RNNoise is the next thing to try.
+
+**The speed cost** is small: the noise remover is tiny compared with the recognizer. Check the gray
+"Last piece" line against your earlier numbers to see for yourself.
+
+**Update:** this is a normal update. It installs over your current version (the signing fix from
+0.3.2 is in place), keeps your settings and models, and downloads one extra file of about 0.5 MB when
+you open the app (tap the download button).
+
+### How to test it
+
+1. Open the settings. **Noise suppression for the detector** should be ticked.
+2. Play a noisy stream and compare with the box unticked. Watch the **Recent** line and the
+   **Pieces** counts, and check whether fewer words are missing.
+3. Try **Also give the recognizer the cleaned audio** on and off, and see which reads better.
+4. Check the **Padding** debug line: it should say mostly `ok`. If it says `mismatch` for every
+   piece, the padding is switched off for safety and Claude needs to know.
+
+---
+
+## What was new in 0.3.2
 
 **Updates now install over the old version.** Until now, every GitHub build was signed with a
 brand-new random key, and Android refuses to update an app unless the new version is signed with
@@ -64,19 +107,20 @@ lets you change the important numbers **while the app is running**.
 
 ## How to update your repo from Termux
 
-Put `jpsubs-milestone3c.zip` in your Downloads folder, then run these one at a time:
+Put `jpsubs-v0.4.0.zip` in your Downloads folder, then run these one at a time:
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-milestone3c.zip -d jpsubs-milestone1
+unzip -o jpsubs-v0.4.0.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Fixed signing key, app icon"
+git commit -m "Noise suppression and padding"
 git push
 ```
 
-Wait for the green check in the **Actions** tab. **Uninstall the old JP Subs from your phone**,
-then install the APK from **Releases > Latest build**. This is the last time you need to uninstall.
+Wait for the green check in the **Actions** tab, then install the APK from
+**Releases > Latest build** over the old one. No uninstall needed.
+Open the app and tap the download button to fetch the small noise-suppression file.
 
 ## How to use the settings panel
 

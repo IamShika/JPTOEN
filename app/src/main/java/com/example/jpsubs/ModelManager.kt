@@ -27,6 +27,7 @@ object ModelManager {
      */
     private val FILES = listOf(
         "silero_vad.onnx" to 2.0,                      // detects "someone is talking"
+        "gtcrn_simple.onnx" to 0.6,                    // removes background noise
         "tokens.txt" to 0.1,                           // the list of Japanese word pieces
         "decoder-epoch-99-avg-1.onnx" to 11.0,         // part of the recognizer
         "joiner-epoch-99-avg-1.int8.onnx" to 2.6,      // part of the recognizer
@@ -35,6 +36,7 @@ object ModelManager {
 
     // Names other files use to find the model files
     const val VAD_FILE = "silero_vad.onnx"
+    const val DENOISER_FILE = "gtcrn_simple.onnx"
     const val TOKENS_FILE = "tokens.txt"
     const val ENCODER_FILE = "encoder-epoch-99-avg-1.int8.onnx"
     const val DECODER_FILE = "decoder-epoch-99-avg-1.onnx"

@@ -52,6 +52,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsButton: Button
     private lateinit var settingsPanel: View
     private lateinit var debugCheck: CheckBox
+    private lateinit var denoiseCheck: CheckBox
+    private lateinit var denoiseAsrCheck: CheckBox
     private lateinit var resetButton: Button
 
     // One entry per slider in the settings panel.
@@ -141,6 +143,8 @@ class MainActivity : ComponentActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         settingsPanel = findViewById(R.id.settingsPanel)
         debugCheck = findViewById(R.id.debugCheck)
+        denoiseCheck = findViewById(R.id.denoiseCheck)
+        denoiseAsrCheck = findViewById(R.id.denoiseAsrCheck)
         resetButton = findViewById(R.id.resetButton)
 
         settingsButton.setOnClickListener {
@@ -172,6 +176,20 @@ class MainActivity : ComponentActivity() {
             affectsDetector = true,
         )
         addSlider(
+            R.id.sliderMinSpeech, R.id.labelMinSpeech,
+            "Shortest sound counted as speech (lower = catches short words like はい)",
+            min = 0.05f, max = 0.5f, step = 0.05f, decimals = 2, unit = " s",
+            read = { Settings.minSpeechSeconds }, write = { Settings.minSpeechSeconds = it },
+            affectsDetector = true,
+        )
+        addSlider(
+            R.id.sliderPadding, R.id.labelPadding,
+            "Extra audio around each piece (stops first and last sounds being clipped)",
+            min = 0.0f, max = 0.5f, step = 0.05f, decimals = 2, unit = " s",
+            read = { Settings.paddingSeconds }, write = { Settings.paddingSeconds = it },
+            affectsDetector = false,
+        )
+        addSlider(
             R.id.sliderGain, R.id.labelGain,
             "Volume boost (helps quiet voices; also boosts noise)",
             min = 1.0f, max = 8.0f, step = 0.5f, decimals = 1, unit = "x",
@@ -189,6 +207,18 @@ class MainActivity : ComponentActivity() {
         debugCheck.setOnCheckedChangeListener { _, checked ->
             Settings.showDebug = checked
             Settings.save(this)
+        }
+
+        // These two change how the audio is prepared, so the front end is rebuilt.
+        denoiseCheck.setOnCheckedChangeListener { _, checked ->
+            Settings.denoise = checked
+            Settings.save(this)
+            Settings.detectorChanged()
+        }
+        denoiseAsrCheck.setOnCheckedChangeListener { _, checked ->
+            Settings.recognizerUsesDenoised = checked
+            Settings.save(this)
+            Settings.detectorChanged()
         }
 
         resetButton.setOnClickListener {
@@ -250,6 +280,8 @@ class MainActivity : ComponentActivity() {
             s.label.text = describeSlider(s, value)
         }
         debugCheck.isChecked = Settings.showDebug
+        denoiseCheck.isChecked = Settings.denoise
+        denoiseAsrCheck.isChecked = Settings.recognizerUsesDenoised
     }
 
     // Only redraw while the screen is visible (saves battery).

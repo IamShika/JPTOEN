@@ -83,6 +83,26 @@ jobs:
             "$M/tokens.txt" \
             "silero_vad.onnx"
 
+      # ---------------------------------------------------------------------------
+      # The noise suppression model (GTCRN, about half a megabyte). The step above only
+      # runs the first time, so this one adds the file to the existing "model-v1" release
+      # if it is missing. It does nothing when the file is already there.
+      # ---------------------------------------------------------------------------
+      - name: Add the noise suppression model (if missing)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          names=$(gh release view model-v1 --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          if grep -qx 'gtcrn_simple.onnx' <<< "$names"; then
+            echo "gtcrn_simple.onnx is already on the release, nothing to do."
+            exit 0
+          fi
+          curl -fL --retry 3 -o /tmp/gtcrn_simple.onnx \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models/gtcrn_simple.onnx"
+          ls -lh /tmp/gtcrn_simple.onnx
+          gh release upload model-v1 /tmp/gtcrn_simple.onnx --repo "$GITHUB_REPOSITORY" --clobber
+
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
