@@ -1,0 +1,72 @@
+package com.example.jpsubs
+
+import java.util.Locale
+
+/**
+ * Notes about what the pipeline is doing, shown under the Start button when
+ * "Show debug info" is ticked. This is how we find out WHICH part is failing:
+ *
+ *  - "hearing speech for 6.0 s" stuck for a long time: the detector thinks noise is speech.
+ *  - many pieces marked "empty": the detector sent audio but the recognizer found no words.
+ *  - many pieces of exactly the maximum length: the detector never finds a pause.
+ */
+object DebugInfo {
+
+    /** What the voice detector hears right now. Updated by the audio thread. */
+    @Volatile
+    var detector: String = ""
+
+    private const val RECENT_COUNT = 8
+
+    private var queued = 0
+    private var withText = 0
+    private var empty = 0
+    private var tooShort = 0
+    private var skipped = 0
+    private val recent = ArrayDeque<String>()
+
+    @Synchronized
+    fun reset() {
+        detector = ""
+        queued = 0
+        withText = 0
+        empty = 0
+        tooShort = 0
+        skipped = 0
+        recent.clear()
+    }
+
+    /** The detector handed a piece of speech to the waiting line. */
+    @Synchronized
+    fun onQueued() {
+        queued++
+    }
+
+    /** A piece was thrown away because the phone could not keep up. */
+    @Synchronized
+    fun onSkipped() {
+        skipped++
+    }
+
+    /** The recognizer finished a piece. `kind` is "ok", "empty" or "short". */
+    @Synchronized
+    fun onResult(seconds: Double, kind: String) {
+        when (kind) {
+            "ok" -> withText++
+            "empty" -> empty++
+            else -> tooShort++
+        }
+        recent.addLast(String.format(Locale.US, "%.1fs %s", seconds, kind))
+        while (recent.size > RECENT_COUNT) {
+            recent.removeFirst()
+        }
+    }
+
+    /** The text for the screen. Newest pieces last. */
+    @Synchronized
+    fun summary(): String {
+        val counts = "Pieces: $queued sent, $withText with text, $empty empty, " +
+            "$tooShort too short, $skipped skipped"
+        return if (recent.isEmpty()) counts else counts + "\nRecent: " + recent.joinToString(" | ")
+    }
+}

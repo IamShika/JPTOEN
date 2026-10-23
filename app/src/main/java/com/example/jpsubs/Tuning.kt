@@ -1,8 +1,10 @@
 package com.example.jpsubs
 
 /**
- * Knobs you can change to trade speed against accuracy.
- * Change a number, push to GitHub, install the new APK, and see what happens.
+ * Starting values for the knobs that trade speed against accuracy.
+ * The first few can also be changed live in the app's Settings panel (see Settings.kt),
+ * which is much faster than rebuilding. The panel remembers its own values; the
+ * numbers here are what "Reset to defaults" goes back to.
  */
 object Tuning {
 

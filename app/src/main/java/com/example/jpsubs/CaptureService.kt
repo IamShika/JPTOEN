@@ -111,6 +111,8 @@ class CaptureService : Service() {
         error = ""
         status = ""
         stats = ""
+        Settings.load(this)
+        DebugInfo.reset()
 
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
         val resultData = IntentCompat.getParcelableExtra(intent, EXTRA_RESULT_DATA, Intent::class.java)
@@ -229,19 +231,51 @@ class CaptureService : Service() {
 
             // Thread 1 (this one): reads audio and finds the sentences.
             val buffer = ShortArray(SAMPLE_RATE / 10) // 100 milliseconds of sound
+
+            var activeVad = loadedVad
+            var seenSettingsVersion = Settings.version
+            var hearingSince = 0L // when the detector started hearing speech (0 = not hearing)
+
             while (keepReading) {
+                // Did the person move a detector slider? Then build a fresh detector.
+                if (Settings.version != seenSettingsVersion) {
+                    seenSettingsVersion = Settings.version
+                    try {
+                        val fresh = createVad()
+                        activeVad.release()
+                        activeVad = fresh
+                        vad = fresh // so the cleanup at the end frees the right one
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Could not rebuild the voice detector", e)
+                    }
+                }
+
                 val count = record.read(buffer, 0, buffer.size)
                 if (count > 0) {
                     level = measureLevel(buffer, count)
 
                     // The speech engine wants numbers between -1.0 and 1.0.
-                    val samples = FloatArray(count) { buffer[it] / 32768f }
-                    loadedVad.acceptWaveform(samples)
+                    // `gain` makes quiet audio louder (clamped so it can't go past the limits).
+                    val gain = Settings.gain
+                    val samples = FloatArray(count) { (buffer[it] / 32768f * gain).coerceIn(-1f, 1f) }
+                    activeVad.acceptWaveform(samples)
+
+                    // For the debug lines: is the detector hearing speech right now, and for how long?
+                    val now = SystemClock.elapsedRealtime()
+                    if (activeVad.isSpeechDetected()) {
+                        if (hearingSince == 0L) hearingSince = now
+                        DebugInfo.detector = String.format(
+                            Locale.US, "Detector: hearing speech for %.1f s", (now - hearingSince) / 1000.0
+                        )
+                    } else {
+                        hearingSince = 0L
+                        DebugInfo.detector = "Detector: quiet"
+                    }
 
                     // Did the voice detector finish any sentences?
-                    while (!loadedVad.empty()) {
-                        val piece = loadedVad.front().samples
-                        loadedVad.pop()
+                    while (!activeVad.empty()) {
+                        val piece = activeVad.front().samples
+                        activeVad.pop()
                         enqueue(waiting, piece)
                     }
                 } else if (count < 0) {
@@ -296,7 +330,12 @@ class CaptureService : Service() {
             val recognizeSeconds = (SystemClock.elapsedRealtime() - recognizeStart) / 1000.0
 
             // Ignore empty results and one-letter noises like "え".
-            if (japanese.length < Tuning.MIN_CHARACTERS) continue
+            val pieceSeconds = piece.size / SAMPLE_RATE.toDouble()
+            if (japanese.length < Settings.minCharacters) {
+                DebugInfo.onResult(pieceSeconds, if (japanese.isEmpty()) "empty" else "short")
+                continue
+            }
+            DebugInfo.onResult(pieceSeconds, "ok")
 
             // Step 2: Japanese text -> English text (stays null if no translator)
             val translateStart = SystemClock.elapsedRealtime()
@@ -306,7 +345,7 @@ class CaptureService : Service() {
             stats = String.format(
                 Locale.US,
                 "Last piece: %.1f s of speech, recognized in %.2f s, translated in %.2f s (%d waiting)",
-                piece.size / SAMPLE_RATE.toDouble(), recognizeSeconds, translateSeconds, waiting.size
+                pieceSeconds, recognizeSeconds, translateSeconds, waiting.size
             )
 
             Transcript.add(japanese, english)
@@ -336,9 +375,11 @@ class CaptureService : Service() {
         var skipped = false
         while (waiting.size >= Tuning.MAX_WAITING_SEGMENTS) {
             waiting.poll()
+            DebugInfo.onSkipped()
             skipped = true
         }
         waiting.add(piece)
+        DebugInfo.onQueued()
         if (skipped) {
             Transcript.add("(skipped some speech: the phone could not keep up)")
         }
@@ -348,11 +389,11 @@ class CaptureService : Service() {
         val config = VadModelConfig(
             sileroVadModelConfig = SileroVadModelConfig(
                 model = ModelManager.path(this, ModelManager.VAD_FILE),
-                threshold = Tuning.VAD_THRESHOLD,
-                minSilenceDuration = Tuning.MIN_SILENCE_SECONDS,
+                threshold = Settings.vadThreshold,
+                minSilenceDuration = Settings.minSilenceSeconds,
                 minSpeechDuration = Tuning.MIN_SPEECH_SECONDS,
                 windowSize = 512,
-                maxSpeechDuration = Tuning.MAX_SPEECH_SECONDS,
+                maxSpeechDuration = Settings.maxSpeechSeconds,
             ),
             sampleRate = SAMPLE_RATE,
             numThreads = 1,

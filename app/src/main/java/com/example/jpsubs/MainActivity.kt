@@ -20,11 +20,15 @@ import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * The only screen of the app. It does these things:
@@ -45,6 +49,25 @@ class MainActivity : ComponentActivity() {
     private lateinit var downloadButton: Button
     private lateinit var statsText: TextView
     private lateinit var transcriptText: TextView
+    private lateinit var settingsButton: Button
+    private lateinit var settingsPanel: View
+    private lateinit var debugCheck: CheckBox
+    private lateinit var resetButton: Button
+
+    // One entry per slider in the settings panel.
+    private class Slider(
+        val bar: SeekBar,
+        val label: TextView,
+        val title: String,
+        val min: Float,
+        val step: Float,
+        val decimals: Int,
+        val unit: String,
+        val read: () -> Float,   // gets the current value from Settings
+        val write: (Float) -> Unit, // puts a new value into Settings
+    )
+
+    private val sliders = mutableListOf<Slider>()
 
     // A Handler lets us run a bit of code again and again on a timer.
     private val handler = Handler(Looper.getMainLooper())
@@ -104,6 +127,129 @@ class MainActivity : ComponentActivity() {
 
         toggleButton.setOnClickListener { onToggleClicked() }
         downloadButton.setOnClickListener { ModelManager.startDownload(this) }
+
+        setUpSettingsPanel()
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The settings panel
+    // ---------------------------------------------------------------------------------------
+
+    private fun setUpSettingsPanel() {
+        Settings.load(this)
+
+        settingsButton = findViewById(R.id.settingsButton)
+        settingsPanel = findViewById(R.id.settingsPanel)
+        debugCheck = findViewById(R.id.debugCheck)
+        resetButton = findViewById(R.id.resetButton)
+
+        settingsButton.setOnClickListener {
+            val show = settingsPanel.visibility != View.VISIBLE
+            settingsPanel.visibility = if (show) View.VISIBLE else View.GONE
+            settingsButton.text = getString(if (show) R.string.btn_hide_settings else R.string.btn_show_settings)
+        }
+
+        // The last "true/false" says whether the voice detector must be rebuilt after a change.
+        addSlider(
+            R.id.sliderThreshold, R.id.labelThreshold,
+            "Detector threshold (lower = hears quieter voices, higher = ignores more noise)",
+            min = 0.1f, max = 0.9f, step = 0.05f, decimals = 2, unit = "",
+            read = { Settings.vadThreshold }, write = { Settings.vadThreshold = it },
+            affectsDetector = true,
+        )
+        addSlider(
+            R.id.sliderSilence, R.id.labelSilence,
+            "Pause that ends a sentence (shorter = subtitles sooner, but chopped up)",
+            min = 0.1f, max = 1.0f, step = 0.05f, decimals = 2, unit = " s",
+            read = { Settings.minSilenceSeconds }, write = { Settings.minSilenceSeconds = it },
+            affectsDetector = true,
+        )
+        addSlider(
+            R.id.sliderMaxSpeech, R.id.labelMaxSpeech,
+            "Longest piece before cutting (shorter = copes better with fast talkers and noise)",
+            min = 1.0f, max = 10.0f, step = 0.5f, decimals = 1, unit = " s",
+            read = { Settings.maxSpeechSeconds }, write = { Settings.maxSpeechSeconds = it },
+            affectsDetector = true,
+        )
+        addSlider(
+            R.id.sliderGain, R.id.labelGain,
+            "Volume boost (helps quiet voices; also boosts noise)",
+            min = 1.0f, max = 8.0f, step = 0.5f, decimals = 1, unit = "x",
+            read = { Settings.gain }, write = { Settings.gain = it },
+            affectsDetector = false,
+        )
+        addSlider(
+            R.id.sliderMinChars, R.id.labelMinChars,
+            "Hide results shorter than this many characters",
+            min = 1f, max = 5f, step = 1f, decimals = 0, unit = "",
+            read = { Settings.minCharacters.toFloat() }, write = { Settings.minCharacters = it.roundToInt() },
+            affectsDetector = false,
+        )
+
+        debugCheck.setOnCheckedChangeListener { _, checked ->
+            Settings.showDebug = checked
+            Settings.save(this)
+        }
+
+        resetButton.setOnClickListener {
+            Settings.resetToDefaults(this)
+            refreshSettingsPanel()
+        }
+
+        refreshSettingsPanel()
+    }
+
+    private fun addSlider(
+        barId: Int,
+        labelId: Int,
+        title: String,
+        min: Float,
+        max: Float,
+        step: Float,
+        decimals: Int,
+        unit: String,
+        read: () -> Float,
+        write: (Float) -> Unit,
+        affectsDetector: Boolean,
+    ) {
+        val slider = Slider(
+            bar = findViewById(barId),
+            label = findViewById(labelId),
+            title = title, min = min, step = step, decimals = decimals, unit = unit,
+            read = read, write = write,
+        )
+        // A SeekBar only knows whole numbers 0, 1, 2 ... so we convert to and from our value.
+        slider.bar.max = ((max - min) / step).roundToInt()
+        sliders += slider
+
+        slider.bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val value = min + progress * step
+                slider.label.text = describeSlider(slider, value)
+                if (fromUser) slider.write(value) // takes effect immediately
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+
+            // When you let go: remember the value, and rebuild the detector if needed.
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                Settings.save(this@MainActivity)
+                if (affectsDetector) Settings.detectorChanged()
+            }
+        })
+    }
+
+    private fun describeSlider(slider: Slider, value: Float): String =
+        slider.title + ": " + String.format(Locale.US, "%.${slider.decimals}f", value) + slider.unit
+
+    /** Moves every slider to the value stored in Settings. */
+    private fun refreshSettingsPanel() {
+        for (s in sliders) {
+            val value = s.read()
+            s.bar.progress = ((value - s.min) / s.step).roundToInt()
+            s.label.text = describeSlider(s, value)
+        }
+        debugCheck.isChecked = Settings.showDebug
     }
 
     // Only redraw while the screen is visible (saves battery).
@@ -215,8 +361,14 @@ class MainActivity : ComponentActivity() {
             statusText.text = status
         }
 
-        // --- speed information
-        val stats = if (running) CaptureService.stats else ""
+        // --- speed information, plus the debug lines if they are switched on
+        val stats = if (!running) {
+            ""
+        } else if (Settings.showDebug) {
+            DebugInfo.detector + "\n" + DebugInfo.summary() + "\n" + CaptureService.stats
+        } else {
+            CaptureService.stats
+        }
         if (statsText.text.toString() != stats) {
             statsText.text = stats
         }

@@ -14,8 +14,8 @@ android {
         // Android 10 (API 29) is the first version that can capture playback audio.
         minSdk = 29
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3-milestone3"
+        versionCode = 4
+        versionName = "0.3.1-settings"
 
         // Both your phones are 64-bit ARM, so we only ship that version of the
         // speech engine. It keeps the APK small.
