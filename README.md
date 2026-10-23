@@ -1,4 +1,8 @@
-# JP Subs (version 0.4.1: better translation handling)
+# JP Subs (version 0.4.2)
+
+**0.4.2:** fixes short words (よし, やばい) being shown as "." — the full stop added in 0.4.1 confused the translator on very short text. It is now only added to longer sentences, and a result with no letters is retried or hidden. More reactions added to the table in `TranslationManager.kt`.
+
+## 0.4.1 notes
 
 ## What is new in 0.4.1
 

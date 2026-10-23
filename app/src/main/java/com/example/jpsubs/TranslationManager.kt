@@ -83,6 +83,8 @@ object TranslationManager {
         "えっ" to "Huh?", "え" to "Huh?", "えー" to "Eh?", "ええ" to "Yeah", "うん" to "Yeah",
         "はい" to "Yes", "ううん" to "Nope", "あー" to "Ah", "あ" to "Ah", "おー" to "Oh!",
         "おお" to "Oh!", "うわ" to "Wow", "うわー" to "Wow", "あはは" to "Haha", "ははは" to "Haha",
+        "よし" to "All right!", "やばい" to "Uh-oh!", "ああ" to "Ah", "そんな" to "No way",
+        "これは" to "This is…", "いいね" to "Nice", "すごい" to "Amazing", "ありがとう" to "Thank you",
         "ふふ" to "Heh", "へー" to "Oh, really?", "ほう" to "Oh?", "ん" to "Hm?", "んー" to "Hmm…"
     )
 
@@ -95,6 +97,10 @@ object TranslationManager {
         text.any { c ->
             c in '぀'..'ヿ' || c in '一'..'鿿'
         }
+
+    /** A translation we should not show: missing, still Japanese, or only punctuation. */
+    private fun isBad(english: String?): Boolean =
+        english == null || hasJapanese(english) || english.none { it.isLetterOrDigit() }
 
     private fun runMlKit(translator: Translator, text: String): String? {
         return try {
@@ -132,15 +138,17 @@ object TranslationManager {
         }
 
         // 4. Translate with a full stop at the end (helps ML Kit treat it as a sentence).
+        //    Only for longer text: on very short words ML Kit answers with just "." (bug in 0.4.1).
         val last = text.last()
-        val withStop = if (last in "。！？!?") text else "$text。"
+        val withStop = if (text.length < 6 || last in "。！？!?") text else "$text。"
         var english = runMlKit(translator, withStop)
 
-        // 5. Japanese letters in the answer = failed. Retry once without the full stop.
-        if (english == null || hasJapanese(english)) {
+        // 5. A failed answer (Japanese letters, or no letters at all like ".") gets one retry
+        //    without the full stop.
+        if (isBad(english)) {
             english = runMlKit(translator, text)
         }
-        if (english == null || hasJapanese(english)) return null
-        return english.trim()
+        if (isBad(english)) return null
+        return english!!.trim()
     }
 }
