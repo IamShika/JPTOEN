@@ -83,6 +83,7 @@ class CaptureService : Service() {
     private var projection: MediaProjection? = null
     private var audioRecord: AudioRecord? = null
     private var worker: Thread? = null
+    private var overlay: SubtitleOverlay? = null
 
     @Volatile
     private var keepReading = false
@@ -177,6 +178,9 @@ class CaptureService : Service() {
             keepReading = true
             running = true
             status = "Loading the speech model…"
+
+            // Floating subtitles (only appear if the person switched them on and allowed them).
+            overlay = SubtitleOverlay(this).also { it.start() }
 
             // Everything slow happens on a separate thread so the app stays responsive.
             worker = thread(name = "audio-pipeline") { runPipeline(record) }
@@ -449,6 +453,8 @@ class CaptureService : Service() {
     /** Cleans up. Safe to call more than once. */
     private fun releaseEverything() {
         keepReading = false
+        overlay?.stop()
+        overlay = null
 
         // The worker thread frees the speech models itself when it finishes.
         // We only wait a moment so the screen doesn't freeze.

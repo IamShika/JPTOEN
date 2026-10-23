@@ -1,4 +1,20 @@
-# JP Subs (version 0.4.2)
+# JP Subs (version 0.5.0: floating subtitles)
+
+## What is new in 0.5.0 (Milestone 4)
+
+The subtitles can now float on top of other apps (YouTube, Twitter/X, anything).
+
+1. Install the update, open the app, tap **Show settings**.
+2. Tick **Floating subtitles over other apps**. Android opens a screen called
+   "Display over other apps": switch **JP Subs** on, then press Back.
+3. Tap Start and play a stream. A dark box with the English (and Japanese below) appears.
+   It hides itself 6 seconds after the last sentence. **Drag it** with a finger to move it.
+
+New file: `SubtitleOverlay.kt`. New permission: "display over other apps" (you grant it yourself).
+Known limits: the box has fixed text size and hide time for now (settings for those can come
+next), and it will not show over some secure screens (banking apps, DRM video).
+
+## 0.4.2
 
 **0.4.2:** fixes short words (よし, やばい) being shown as "." — the full stop added in 0.4.1 confused the translator on very short text. It is now only added to longer sentences, and a result with no letters is retried or hidden. More reactions added to the table in `TranslationManager.kt`.
 

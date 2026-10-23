@@ -52,6 +52,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsButton: Button
     private lateinit var settingsPanel: View
     private lateinit var debugCheck: CheckBox
+    private lateinit var overlayCheck: CheckBox
+    private lateinit var overlayJpCheck: CheckBox
     private lateinit var denoiseCheck: CheckBox
     private lateinit var denoiseAsrCheck: CheckBox
     private lateinit var resetButton: Button
@@ -143,6 +145,8 @@ class MainActivity : ComponentActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         settingsPanel = findViewById(R.id.settingsPanel)
         debugCheck = findViewById(R.id.debugCheck)
+        overlayCheck = findViewById(R.id.overlayCheck)
+        overlayJpCheck = findViewById(R.id.overlayJpCheck)
         denoiseCheck = findViewById(R.id.denoiseCheck)
         denoiseAsrCheck = findViewById(R.id.denoiseAsrCheck)
         resetButton = findViewById(R.id.resetButton)
@@ -206,6 +210,25 @@ class MainActivity : ComponentActivity() {
 
         debugCheck.setOnCheckedChangeListener { _, checked ->
             Settings.showDebug = checked
+            Settings.save(this)
+        }
+
+        // Floating subtitles. Android makes the person allow "Display over other apps"
+        // on a special screen; we open it and the box starts working once they allow it.
+        overlayCheck.setOnCheckedChangeListener { _, checked ->
+            Settings.overlayEnabled = checked
+            Settings.save(this)
+            if (checked && !android.provider.Settings.canDrawOverlays(this)) {
+                startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:$packageName")
+                    )
+                )
+            }
+        }
+        overlayJpCheck.setOnCheckedChangeListener { _, checked ->
+            Settings.overlayShowJapanese = checked
             Settings.save(this)
         }
 
@@ -280,6 +303,8 @@ class MainActivity : ComponentActivity() {
             s.label.text = describeSlider(s, value)
         }
         debugCheck.isChecked = Settings.showDebug
+        overlayCheck.isChecked = Settings.overlayEnabled
+        overlayJpCheck.isChecked = Settings.overlayShowJapanese
         denoiseCheck.isChecked = Settings.denoise
         denoiseAsrCheck.isChecked = Settings.recognizerUsesDenoised
     }

@@ -10,6 +10,8 @@
     <string name="btn_show_settings">Show settings</string>
     <string name="btn_hide_settings">Hide settings</string>
     <string name="btn_reset">Reset to defaults</string>
+    <string name="check_overlay">Floating subtitles over other apps (asks for permission)</string>
+    <string name="check_overlay_jp">Show the Japanese line in the floating box too</string>
     <string name="check_debug">Show debug info</string>
     <string name="check_denoise">Noise suppression for the detector (recommended)</string>
     <string name="check_denoise_asr">Also give the recognizer the cleaned audio (test it: can help or hurt)</string>

@@ -39,6 +39,18 @@ object Settings {
     /** Results shorter than this many characters are hidden. */
     @Volatile var minCharacters: Int = Tuning.MIN_CHARACTERS
 
+    /** Show floating subtitles on top of other apps (needs "Display over other apps"). */
+    @Volatile var overlayEnabled: Boolean = false
+
+    /** Also show the Japanese line in the floating box. */
+    @Volatile var overlayShowJapanese: Boolean = true
+
+    /** How many seconds the floating box stays after the last new line. */
+    @Volatile var overlaySeconds: Int = 6
+
+    /** Distance (pixels) of the floating box from the top of the screen. */
+    @Volatile var overlayY: Int = 120
+
     /** Show the debug lines under the Start button. */
     @Volatile var showDebug: Boolean = true
 
@@ -61,6 +73,10 @@ object Settings {
         recognizerUsesDenoised = p.getBoolean("recognizerUsesDenoised", false)
         minCharacters = p.getInt("minCharacters", Tuning.MIN_CHARACTERS)
         showDebug = p.getBoolean("showDebug", true)
+        overlayEnabled = p.getBoolean("overlayEnabled", false)
+        overlayShowJapanese = p.getBoolean("overlayShowJapanese", true)
+        overlaySeconds = p.getInt("overlaySeconds", 6)
+        overlayY = p.getInt("overlayY", 120)
     }
 
     /** Saves the current values to the phone's storage. */
@@ -76,6 +92,10 @@ object Settings {
             .putBoolean("recognizerUsesDenoised", recognizerUsesDenoised)
             .putInt("minCharacters", minCharacters)
             .putBoolean("showDebug", showDebug)
+            .putBoolean("overlayEnabled", overlayEnabled)
+            .putBoolean("overlayShowJapanese", overlayShowJapanese)
+            .putInt("overlaySeconds", overlaySeconds)
+            .putInt("overlayY", overlayY)
             .apply()
     }
 
@@ -95,6 +115,8 @@ object Settings {
         recognizerUsesDenoised = false
         minCharacters = Tuning.MIN_CHARACTERS
         showDebug = true
+        overlayShowJapanese = true
+        overlaySeconds = 6
         save(context)
         detectorChanged()
     }

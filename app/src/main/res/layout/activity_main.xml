@@ -209,6 +209,19 @@
                         android:text="@string/check_denoise_asr" />
 
                     <CheckBox
+                        android:id="@+id/overlayCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/check_overlay" />
+
+                    <CheckBox
+                        android:id="@+id/overlayJpCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/check_overlay_jp" />
+
+                    <CheckBox
                         android:id="@+id/debugCheck"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
+    <!-- Lets the floating subtitles draw on top of other apps (the person must also allow it). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Lets the "listening..." notification show up on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
