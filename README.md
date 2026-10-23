@@ -1,4 +1,29 @@
-# JP Subs (Milestone 3.1: settings and debug view)
+# JP Subs (version 0.3.2: easier updates and an app icon)
+
+![JP Subs icon](docs/app-icon.png)
+
+## What is new in 0.3.2
+
+**Updates now install over the old version.** Until now, every GitHub build was signed with a
+brand-new random key, and Android refuses to update an app unless the new version is signed with
+the same key as the old one. That is the "package conflicts with an existing package" message.
+Now every build is signed with the same key file (`app/debug.keystore`), and each build gets a
+higher version number automatically.
+
+> **You must uninstall JP Subs one last time** before installing this version, because the version
+> on your phone was signed with an old random key. Uninstalling also deletes the downloaded models,
+> so the app will download them again (about 185 MB). From the next update on, you just install the
+> new APK over the old one, and your models and settings stay.
+
+**App icon.** Your icon is now the app's icon. A copy of the original is in `docs/app-icon.png`.
+
+The keystore file is a personal *development* key and is public in this repo. That is fine for your
+own phones. If the app is ever published for other people, switch to a private key stored in
+GitHub Secrets.
+
+---
+
+# Milestone 3.1: settings and debug view
 
 An open-source Android app that listens to whatever your phone is playing,
 turns Japanese speech into text, translates it to English and (soon) shows it as
@@ -39,19 +64,19 @@ lets you change the important numbers **while the app is running**.
 
 ## How to update your repo from Termux
 
-Put `jpsubs-milestone3b.zip` in your Downloads folder, then run these one at a time:
+Put `jpsubs-milestone3c.zip` in your Downloads folder, then run these one at a time:
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-milestone3b.zip -d jpsubs-milestone1
+unzip -o jpsubs-milestone3c.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Milestone 3.1: live settings and debug view"
+git commit -m "Fixed signing key, app icon"
 git push
 ```
 
-Wait for the green check in the **Actions** tab, then install the APK from
-**Releases > Latest build**. Your downloaded models are kept.
+Wait for the green check in the **Actions** tab. **Uninstall the old JP Subs from your phone**,
+then install the APK from **Releases > Latest build**. This is the last time you need to uninstall.
 
 ## How to use the settings panel
 

@@ -14,8 +14,11 @@ android {
         // Android 10 (API 29) is the first version that can capture playback audio.
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.1-settings"
+        // Android only lets an update install over an older version if this number is higher.
+        // GitHub numbers every build 1, 2, 3 ... so we use that number (plus 100, which is
+        // higher than the versions you installed before).
+        versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
+        versionName = "0.3.2"
 
         // Both your phones are 64-bit ARM, so we only ship that version of the
         // speech engine. It keeps the APK small.
@@ -32,6 +35,21 @@ android {
             "MODEL_BASE_URL",
             "\"https://github.com/$repo/releases/download/model-v1/\""
         )
+    }
+
+    // SIGNING. Android refuses to install an update unless it is signed with the same key
+    // as the version already on the phone. GitHub's build servers normally invent a new
+    // random key every time, which is why updates said "package conflicts with an existing
+    // package". Here we always sign with the same key file (app/debug.keystore).
+    // This is a personal development key: fine for your own phones and for testing. If the
+    // app is ever published for other people, use a private key kept in GitHub Secrets instead.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildFeatures {
