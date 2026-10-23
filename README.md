@@ -1,4 +1,6 @@
-# JP Subs (version 0.6.0: choose your recognizer)
+# JP Subs (version 0.6.1: choose your recognizer)
+
+**0.6.1:** fixes the build error in 0.6.0 (missing imports).
 
 ## What is new in 0.6.0
 
@@ -163,20 +165,26 @@ lets you change the important numbers **while the app is running**.
 
 ## How to update your repo from Termux
 
-Put `jpsubs-v0.4.0.zip` in your Downloads folder, then run these one at a time:
+Put the newest zip (for example `jpsubs-v0.6.1.zip`) in your Downloads folder, then run these one
+at a time. **Change the version number in the first two lines to match the zip you downloaded**
+(the zip name is in Claude's message), and write whatever you like inside the quotes of the commit.
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-v0.4.0.zip -d jpsubs-milestone1
+unzip -o jpsubs-v0.6.1.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Noise suppression and padding"
+git commit -m "Update to 0.6.1"
 git push
 ```
 
-Wait for the green check in the **Actions** tab, then install the APK from
+The folder name `jpsubs-milestone1` must stay the same every time: that folder holds the hidden
+`.git` history from your first push, and `unzip -o` overwrites the files inside it. If `git push`
+asks for a password, use your GitHub token (not your account password). If it says "not a git
+repository", you are in a different folder from the one you first ran `git init` in.
+
+Then wait for the green check in the **Actions** tab and install the APK from
 **Releases > Latest build** over the old one. No uninstall needed.
-Open the app and tap the download button to fetch the small noise-suppression file.
 
 ## How to use the settings panel
 
