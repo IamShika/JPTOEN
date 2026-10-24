@@ -22,7 +22,10 @@ import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.AdapterView
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.SeekBar
@@ -56,6 +59,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsPanel: View
     private lateinit var debugCheck: CheckBox
     private lateinit var overlayCheck: CheckBox
+    private lateinit var translatorSpinner: Spinner
+    private lateinit var translatorNote: TextView
+    private lateinit var aiUrlEdit: EditText
+    private lateinit var keyEdit: EditText
+    private lateinit var aiModelEdit: EditText
+    private lateinit var translatorTestButton: Button
+    private var fillingTranslatorFields = false // true while WE set the text (not the person)
+    private var translatorTestResult = ""
     private lateinit var energyCheck: CheckBox
     private lateinit var asrSpinner: Spinner
     private lateinit var asrNote: TextView
@@ -155,6 +166,12 @@ class MainActivity : ComponentActivity() {
         settingsPanel = findViewById(R.id.settingsPanel)
         debugCheck = findViewById(R.id.debugCheck)
         overlayCheck = findViewById(R.id.overlayCheck)
+        translatorSpinner = findViewById(R.id.translatorSpinner)
+        translatorNote = findViewById(R.id.translatorNote)
+        aiUrlEdit = findViewById(R.id.aiUrlEdit)
+        keyEdit = findViewById(R.id.keyEdit)
+        aiModelEdit = findViewById(R.id.aiModelEdit)
+        translatorTestButton = findViewById(R.id.translatorTestButton)
         energyCheck = findViewById(R.id.energyCheck)
         asrSpinner = findViewById(R.id.asrSpinner)
         asrNote = findViewById(R.id.asrNote)
@@ -237,6 +254,59 @@ class MainActivity : ComponentActivity() {
         energyCheck.setOnCheckedChangeListener { _, checked ->
             Settings.energyBackup = checked
             Settings.save(this)
+        }
+
+        // Choosing a translator and typing its key / address.
+        translatorSpinner.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, Translators.OPTIONS.map { it.label }
+        )
+        translatorSpinner.setSelection(
+            Translators.OPTIONS.indexOfFirst { it.id == Settings.translator }.coerceAtLeast(0), false
+        )
+        translatorSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val picked = Translators.OPTIONS[position].id
+                if (picked != Settings.translator) {
+                    Settings.translator = picked
+                    Settings.save(this@MainActivity)
+                    translatorTestResult = ""
+                }
+                refreshTranslatorPanel()
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        fun watch(edit: EditText, save: (String) -> Unit) {
+            edit.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+                override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    if (fillingTranslatorFields) return
+                    save(s?.toString()?.trim() ?: "")
+                    Settings.save(this@MainActivity)
+                }
+            })
+        }
+        watch(aiUrlEdit) { Settings.aiBaseUrl = it }
+        watch(aiModelEdit) { Settings.aiModel = it }
+        // The one key field is used by DeepL or by the AI service, depending on the choice.
+        watch(keyEdit) {
+            if (Settings.translator == Translators.DEEPL) Settings.deeplKey = it else Settings.aiKey = it
+        }
+        translatorTestButton.setOnClickListener {
+            translatorTestResult = "Testing…"
+            refreshTranslatorPanel()
+            Thread {
+                val result = try {
+                    Translators.test()
+                } catch (e: Exception) {
+                    "Test FAILED: ${e.message ?: e.javaClass.simpleName}"
+                }
+                runOnUiThread {
+                    translatorTestResult = result
+                    refreshTranslatorPanel()
+                }
+            }.start()
         }
 
         // Choosing a speech recognizer, downloading it, deleting it.
@@ -344,6 +414,29 @@ class MainActivity : ComponentActivity() {
     private fun describeSlider(slider: Slider, value: Float): String =
         slider.title + ": " + String.format(Locale.US, "%.${slider.decimals}f", value) + slider.unit
 
+    /** Shows the description and the right input fields for the chosen translator. */
+    private fun refreshTranslatorPanel() {
+        val id = Settings.translator
+        val option = Translators.option(id)
+        translatorNote.text = option.note + if (translatorTestResult.isNotEmpty()) "\n" + translatorTestResult else ""
+
+        val needsKey = id == Translators.DEEPL || id == Translators.AI_API
+        val isAi = id == Translators.AI_API
+        aiUrlEdit.visibility = if (isAi) View.VISIBLE else View.GONE
+        aiModelEdit.visibility = if (isAi) View.VISIBLE else View.GONE
+        keyEdit.visibility = if (needsKey) View.VISIBLE else View.GONE
+
+        // Fill the boxes (only when different, so typing is not disturbed).
+        fillingTranslatorFields = true
+        fun fill(edit: EditText, text: String) {
+            if (edit.text.toString() != text) edit.setText(text)
+        }
+        fill(aiUrlEdit, Settings.aiBaseUrl)
+        fill(aiModelEdit, Settings.aiModel)
+        fill(keyEdit, if (id == Translators.DEEPL) Settings.deeplKey else Settings.aiKey)
+        fillingTranslatorFields = false
+    }
+
     /** Updates the recognizer dropdown, its description and the download / delete button. */
     private fun refreshAsrPanel() {
         val models = AsrModels.ALL
@@ -392,6 +485,7 @@ class MainActivity : ComponentActivity() {
             s.label.text = describeSlider(s, value)
         }
         debugCheck.isChecked = Settings.showDebug
+        refreshTranslatorPanel()
         energyCheck.isChecked = Settings.energyBackup
         refreshAsrPanel()
         overlayCheck.isChecked = Settings.overlayEnabled

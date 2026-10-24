@@ -225,7 +225,9 @@ class CaptureService : Service() {
                 Log.e(TAG, "Translator unavailable", e)
                 translatorNote = " (translation unavailable: ${e.message})"
             }
-            val loadedTranslator = translator
+            // The translator the person picked in Settings (ML Kit stays as the backup).
+            val loadedTranslator = Translators.create(translator)
+            translatorNote += " (translator: ${Translators.option(Settings.translator).label})"
 
             // The front end = noise suppression + voice detector (see FrontEnd.kt).
             val loadedFrontEnd = FrontEnd(this)
@@ -311,9 +313,11 @@ class CaptureService : Service() {
      */
     private fun decodeLoop(
         recognizer: OfflineRecognizer,
-        translator: Translator?,
+        translator: TextTranslator?,
         waiting: LinkedBlockingQueue<FloatArray>,
     ) {
+        // The last few (Japanese, English) pairs, handed to smart translators as context.
+        val history = ArrayDeque<Pair<String, String>>()
         while (true) {
             val piece = waiting.take() // sleeps until something arrives
             if (piece.isEmpty()) break
@@ -338,14 +342,25 @@ class CaptureService : Service() {
 
             // Step 2: Japanese text -> English text (stays null if no translator)
             val translateStart = SystemClock.elapsedRealtime()
-            val english = translator?.let { TranslationManager.translate(it, japanese) }
+            val english = translator?.let {
+                try {
+                    it.translate(japanese, history.toList())
+                } catch (e: Exception) {
+                    Log.e(TAG, "Translation failed", e)
+                    null
+                }
+            }
+            if (!english.isNullOrBlank()) {
+                history.addLast(Pair(japanese, english))
+                while (history.size > 3) history.removeFirst()
+            }
             val translateSeconds = (SystemClock.elapsedRealtime() - translateStart) / 1000.0
 
             stats = String.format(
                 Locale.US,
                 "Last piece: %.1f s of speech, recognized in %.2f s, translated in %.2f s (%d waiting)",
                 pieceSeconds, recognizeSeconds, translateSeconds, waiting.size
-            )
+            ) + if (Translators.lastError.isNotEmpty()) "\nTranslator problem (using ML Kit instead): ${Translators.lastError}" else ""
 
             Transcript.add(japanese, english)
 

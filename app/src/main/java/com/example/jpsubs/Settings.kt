@@ -62,6 +62,15 @@ object Settings {
     /** Loudness limit for the backup detector, in dB (0 = loudest possible, -50 = very quiet). */
     @Volatile var energyThresholdDb: Float = -30f
 
+    /** Which translator is used (an id from Translators). */
+    @Volatile var translator: String = Translators.ML_KIT
+
+    /** Keys and addresses for the online translators. They stay on this phone only. */
+    @Volatile var deeplKey: String = ""
+    @Volatile var aiBaseUrl: String = "https://generativelanguage.googleapis.com/v1beta/openai"
+    @Volatile var aiKey: String = ""
+    @Volatile var aiModel: String = "gemini-2.5-flash"
+
     /** Show the debug lines under the Start button. */
     @Volatile var showDebug: Boolean = true
 
@@ -85,6 +94,11 @@ object Settings {
         minCharacters = p.getInt("minCharacters", Tuning.MIN_CHARACTERS)
         showDebug = p.getBoolean("showDebug", true)
         overlayEnabled = p.getBoolean("overlayEnabled", false)
+        translator = p.getString("translator", Translators.ML_KIT) ?: Translators.ML_KIT
+        deeplKey = p.getString("deeplKey", "") ?: ""
+        aiBaseUrl = p.getString("aiBaseUrl", aiBaseUrl) ?: aiBaseUrl
+        aiKey = p.getString("aiKey", "") ?: ""
+        aiModel = p.getString("aiModel", aiModel) ?: aiModel
         energyBackup = p.getBoolean("energyBackup", false)
         energyThresholdDb = p.getFloat("energyThresholdDb", -30f)
         overlayShowJapanese = p.getBoolean("overlayShowJapanese", true)
@@ -107,6 +121,11 @@ object Settings {
             .putInt("minCharacters", minCharacters)
             .putBoolean("showDebug", showDebug)
             .putBoolean("overlayEnabled", overlayEnabled)
+            .putString("translator", translator)
+            .putString("deeplKey", deeplKey)
+            .putString("aiBaseUrl", aiBaseUrl)
+            .putString("aiKey", aiKey)
+            .putString("aiModel", aiModel)
             .putBoolean("energyBackup", energyBackup)
             .putFloat("energyThresholdDb", energyThresholdDb)
             .putBoolean("overlayShowJapanese", overlayShowJapanese)

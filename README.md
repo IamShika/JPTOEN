@@ -1,3 +1,15 @@
+# JP Subs (version 0.8.0: choose your translator)
+
+**0.8.0: translators.** Settings > Translator now offers four:
+Google ML Kit (offline, the old one), Google Translate (online, no key), DeepL (free key) and an
+AI chat model (any OpenAI-compatible service; defaults are for Google Gemini). The AI option also
+sees the last 3 lines as context, so it copes much better with slang and half sentences.
+Use **Test translator** to check a key. If an online translator fails, ML Kit answers instead
+and the debug panel says why. The change takes effect the next time you tap Start.
+
+**Privacy:** the online translators send the Japanese text (not the audio) to that company. Your
+keys are stored only on your phone, never in the GitHub repo. Do not paste keys into the code.
+
 # JP Subs (version 0.7.0)
 
 **0.7.0: backup loudness detector.** The voice detector (Silero) sometimes ignores very high
@@ -177,16 +189,16 @@ lets you change the important numbers **while the app is running**.
 
 ## How to update your repo from Termux
 
-Put the newest zip (for example `jpsubs-v0.7.0.zip`) in your Downloads folder, then run these one
+Put the newest zip (for example `jpsubs-v0.8.0.zip`) in your Downloads folder, then run these one
 at a time. **Change the version number in the first two lines to match the zip you downloaded**
 (the zip name is in Claude's message), and write whatever you like inside the quotes of the commit.
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-v0.7.0.zip -d jpsubs-milestone1
+unzip -o jpsubs-v0.8.0.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Update to 0.7.0"
+git commit -m "Update to 0.8.0"
 git push
 ```
 
