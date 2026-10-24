@@ -56,8 +56,8 @@ object AsrModels {
         Info(
             id = "whisper-small",
             label = "Whisper small",
-            note = "OpenAI Whisper. Good with names and slang, slower, sometimes invents words " +
-                "in silence. About 370 MB.",
+            note = "OpenAI Whisper. Too slow on most phones (it falls behind and skips speech) " +
+                "and sometimes invents words. Not recommended. About 370 MB.",
             release = "model-whisper-small",
             files = listOf(
                 F("encoder.onnx", "encoder.onnx", 110.0),

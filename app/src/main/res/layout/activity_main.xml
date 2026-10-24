@@ -184,6 +184,23 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content" />
 
+                    <CheckBox
+                        android:id="@+id/energyCheck"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/check_energy" />
+
+                    <TextView
+                        android:id="@+id/labelEnergy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="14sp" />
+                    <SeekBar
+                        android:id="@+id/sliderEnergy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
                     <TextView
                         android:id="@+id/labelPadding"
                         android:layout_width="match_parent"

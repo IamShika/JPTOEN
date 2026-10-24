@@ -55,6 +55,13 @@ object Settings {
     /** Which speech recognizer is used (an id from AsrModels). */
     @Volatile var asrModel: String = AsrModels.DEFAULT_ID
 
+    /** Backup detector: treat any sound louder than the limit below as speech when the
+     *  normal voice detector hears nothing (for high-pitched voices and sudden loud sounds). */
+    @Volatile var energyBackup: Boolean = false
+
+    /** Loudness limit for the backup detector, in dB (0 = loudest possible, -50 = very quiet). */
+    @Volatile var energyThresholdDb: Float = -30f
+
     /** Show the debug lines under the Start button. */
     @Volatile var showDebug: Boolean = true
 
@@ -78,6 +85,8 @@ object Settings {
         minCharacters = p.getInt("minCharacters", Tuning.MIN_CHARACTERS)
         showDebug = p.getBoolean("showDebug", true)
         overlayEnabled = p.getBoolean("overlayEnabled", false)
+        energyBackup = p.getBoolean("energyBackup", false)
+        energyThresholdDb = p.getFloat("energyThresholdDb", -30f)
         overlayShowJapanese = p.getBoolean("overlayShowJapanese", true)
         overlaySeconds = p.getInt("overlaySeconds", 6)
         overlayYFraction = p.getFloat("overlayYFraction", 0.12f)
@@ -98,6 +107,8 @@ object Settings {
             .putInt("minCharacters", minCharacters)
             .putBoolean("showDebug", showDebug)
             .putBoolean("overlayEnabled", overlayEnabled)
+            .putBoolean("energyBackup", energyBackup)
+            .putFloat("energyThresholdDb", energyThresholdDb)
             .putBoolean("overlayShowJapanese", overlayShowJapanese)
             .putInt("overlaySeconds", overlaySeconds)
             .putFloat("overlayYFraction", overlayYFraction)
@@ -123,6 +134,8 @@ object Settings {
         showDebug = true
         overlayShowJapanese = true
         overlaySeconds = 6
+        energyBackup = false
+        energyThresholdDb = -30f
         save(context)
         detectorChanged()
     }

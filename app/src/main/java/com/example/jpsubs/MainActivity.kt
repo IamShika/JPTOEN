@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsPanel: View
     private lateinit var debugCheck: CheckBox
     private lateinit var overlayCheck: CheckBox
+    private lateinit var energyCheck: CheckBox
     private lateinit var asrSpinner: Spinner
     private lateinit var asrNote: TextView
     private lateinit var asrBar: ProgressBar
@@ -154,6 +155,7 @@ class MainActivity : ComponentActivity() {
         settingsPanel = findViewById(R.id.settingsPanel)
         debugCheck = findViewById(R.id.debugCheck)
         overlayCheck = findViewById(R.id.overlayCheck)
+        energyCheck = findViewById(R.id.energyCheck)
         asrSpinner = findViewById(R.id.asrSpinner)
         asrNote = findViewById(R.id.asrNote)
         asrBar = findViewById(R.id.asrBar)
@@ -199,6 +201,13 @@ class MainActivity : ComponentActivity() {
             affectsDetector = true,
         )
         addSlider(
+            R.id.sliderEnergy, R.id.labelEnergy,
+            "Backup detector loudness limit (lower = triggers on quieter sounds; watch the Loudness line)",
+            min = -50.0f, max = -10.0f, step = 1.0f, decimals = 0, unit = " dB",
+            read = { Settings.energyThresholdDb }, write = { Settings.energyThresholdDb = it },
+            affectsDetector = false,
+        )
+        addSlider(
             R.id.sliderPadding, R.id.labelPadding,
             "Extra audio around each piece (stops first and last sounds being clipped)",
             min = 0.0f, max = 0.5f, step = 0.05f, decimals = 2, unit = " s",
@@ -222,6 +231,11 @@ class MainActivity : ComponentActivity() {
 
         debugCheck.setOnCheckedChangeListener { _, checked ->
             Settings.showDebug = checked
+            Settings.save(this)
+        }
+
+        energyCheck.setOnCheckedChangeListener { _, checked ->
+            Settings.energyBackup = checked
             Settings.save(this)
         }
 
@@ -378,6 +392,7 @@ class MainActivity : ComponentActivity() {
             s.label.text = describeSlider(s, value)
         }
         debugCheck.isChecked = Settings.showDebug
+        energyCheck.isChecked = Settings.energyBackup
         refreshAsrPanel()
         overlayCheck.isChecked = Settings.overlayEnabled
         overlayJpCheck.isChecked = Settings.overlayShowJapanese
@@ -499,7 +514,7 @@ class MainActivity : ComponentActivity() {
         val stats = if (!running) {
             ""
         } else if (Settings.showDebug) {
-            DebugInfo.detector + "\n" + DebugInfo.summary() + "\n" + CaptureService.stats
+            DebugInfo.detector + (if (DebugInfo.loudness.isNotEmpty()) "\n" + DebugInfo.loudness else "") + "\n" + DebugInfo.summary() + "\n" + CaptureService.stats
         } else {
             CaptureService.stats
         }

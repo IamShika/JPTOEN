@@ -1,4 +1,14 @@
-# JP Subs (version 0.6.2: choose your recognizer)
+# JP Subs (version 0.7.0)
+
+**0.7.0: backup loudness detector.** The voice detector (Silero) sometimes ignores very high
+voices and sudden loud sounds. In Settings, tick **Backup detector**: any sound louder than the
+limit (default -30 dB) that the normal detector missed is cut out and sent to the recognizer.
+The debug panel shows a **Loudness** line so you can pick the limit: speak or play the sound,
+read the dB value, and set the slider just below it. It cannot tell speech from music or game
+effects, so keep it off for streams with loud music. Whisper small is marked "not recommended"
+(too slow).
+
+# (older notes)
 
 **0.6.2:** the floating box now shrinks to fit its text (no wide empty black bar in landscape). Leaked control text and invented Chinese words from Qwen/Fun-ASR/Whisper are filtered out.
 
@@ -167,16 +177,16 @@ lets you change the important numbers **while the app is running**.
 
 ## How to update your repo from Termux
 
-Put the newest zip (for example `jpsubs-v0.6.2.zip`) in your Downloads folder, then run these one
+Put the newest zip (for example `jpsubs-v0.7.0.zip`) in your Downloads folder, then run these one
 at a time. **Change the version number in the first two lines to match the zip you downloaded**
 (the zip name is in Claude's message), and write whatever you like inside the quotes of the commit.
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-v0.6.2.zip -d jpsubs-milestone1
+unzip -o jpsubs-v0.7.0.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Update to 0.6.2"
+git commit -m "Update to 0.7.0"
 git push
 ```
 

@@ -13,6 +13,7 @@
     <string name="check_overlay">Floating subtitles over other apps (asks for permission)</string>
     <string name="check_overlay_jp">Show the Japanese line in the floating box too</string>
     <string name="asr_title">Speech recognizer (takes effect the next time you tap Start)</string>
+    <string name="check_energy">Backup detector: send loud sounds the detector ignores (high voices, screams; may also send music)</string>
     <string name="check_debug">Show debug info</string>
     <string name="check_denoise">Noise suppression for the detector (recommended)</string>
     <string name="check_denoise_asr">Also give the recognizer the cleaned audio (test it: can help or hurt)</string>

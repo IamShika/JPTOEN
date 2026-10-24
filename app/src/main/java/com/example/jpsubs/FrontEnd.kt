@@ -11,6 +11,8 @@ import com.k2fsa.sherpa.onnx.SpeechSegment
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
 import kotlin.math.abs
+import kotlin.math.log10
+import kotlin.math.sqrt
 
 /**
  * A rolling memory of the most recent audio. Old audio is overwritten by new audio.
@@ -93,6 +95,12 @@ class FrontEnd(private val context: Context) {
 
     private var seenSettingsVersion = -1 // -1 forces a build on the first call
 
+    // Backup loudness detector (see runBackupDetector). Positions are in rawRing units.
+    private var loudStart = -1L        // where the current loud stretch began (-1 = none)
+    private var loudLast = 0L          // end of the most recent loud chunk
+    private var vadSawSpeech = false   // did the normal detector hear speech during this stretch?
+    private var backupPieces = 0
+
     /** Builds (or rebuilds) the noise suppressor and detector if Settings changed. */
     fun applySettingsIfChanged() {
         if (Settings.version == seenSettingsVersion) return
@@ -154,7 +162,64 @@ class FrontEnd(private val context: Context) {
             detector.pop()
             pieces.add(buildPiece(segment))
         }
+        runBackupDetector(samples, detector.isSpeechDetected() || pieces.isNotEmpty(), pieces)
         return pieces
+    }
+
+    /**
+     * Backup for sounds the voice detector ignores (very high voices, screams, sudden loud
+     * sounds). If this is switched on in Settings and the sound is louder than the limit for
+     * long enough, while the normal detector heard nothing, we cut that stretch out ourselves
+     * and send it to the recognizer. It cannot tell speech from other loud sounds, so music or
+     * game effects above the limit will also be sent.
+     */
+    private fun runBackupDetector(chunk: FloatArray, vadActive: Boolean, pieces: MutableList<FloatArray>) {
+        // Measure how loud this 100 ms chunk is (in dB, 0 = the loudest possible).
+        var sum = 0.0
+        for (s in chunk) sum += s.toDouble() * s
+        val rms = sqrt(sum / maxOf(1, chunk.size))
+        val db = if (rms < 1e-9) -90f else (20 * log10(rms)).toFloat()
+
+        if (!Settings.energyBackup) {
+            loudStart = -1L
+            DebugInfo.loudness = ""
+            return
+        }
+        DebugInfo.loudness = "Loudness: %.0f dB (limit %.0f dB), backup pieces: %d"
+            .format(java.util.Locale.US, db, Settings.energyThresholdDb, backupPieces)
+
+        val chunkEnd = rawRing.total
+        val chunkStart = chunkEnd - chunk.size
+        if (db > Settings.energyThresholdDb) {
+            if (loudStart < 0) {
+                loudStart = chunkStart
+                vadSawSpeech = false
+            }
+            loudLast = chunkEnd
+        }
+        if (loudStart < 0) return
+        if (vadActive) vadSawSpeech = true
+
+        val quietFor = chunkEnd - loudLast
+        val tooLong = chunkEnd - loudStart >= (Settings.maxSpeechSeconds * sampleRate).toLong()
+        if (quietFor < (Settings.minSilenceSeconds * sampleRate).toLong() && !tooLong) return
+
+        // The loud stretch is over. Keep it only if the normal detector missed it.
+        val length = loudLast - loudStart
+        if (!vadSawSpeech && loudStart >= previousEnd &&
+            length >= (Settings.minSpeechSeconds * sampleRate).toLong()
+        ) {
+            val padding = (Settings.paddingSeconds * sampleRate).toLong()
+            val from = maxOf(loudStart - padding, previousEnd, 0L)
+            val to = minOf(loudLast + padding, rawRing.total)
+            val audio = rawRing.read(from, to)
+            if (audio != null) {
+                pieces.add(audio)
+                previousEnd = to
+                backupPieces++
+            }
+        }
+        loudStart = -1L
     }
 
     fun isHearingSpeech(): Boolean = vad?.isSpeechDetected() ?: false

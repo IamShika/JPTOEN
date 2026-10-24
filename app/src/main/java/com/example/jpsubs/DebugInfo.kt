@@ -20,6 +20,10 @@ object DebugInfo {
     @Volatile
     var frontEnd: String = ""
 
+    /** Current loudness and how many pieces the backup detector made. */
+    @Volatile
+    var loudness: String = ""
+
     private const val RECENT_COUNT = 8
 
     private var queued = 0
