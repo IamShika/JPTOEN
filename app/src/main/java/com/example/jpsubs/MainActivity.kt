@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsPanel: View
     private lateinit var debugCheck: CheckBox
     private lateinit var overlayCheck: CheckBox
+    private lateinit var updateAutoCheck: CheckBox
     private lateinit var translatorSpinner: Spinner
     private lateinit var translatorNote: TextView
     private lateinit var aiUrlEdit: EditText
@@ -318,6 +319,14 @@ class MainActivity : ComponentActivity() {
         settingsPanel = findViewById(R.id.settingsPanel)
         debugCheck = findViewById(R.id.debugCheck)
         overlayCheck = findViewById(R.id.overlayCheck)
+        updateAutoCheck = findViewById(R.id.updateAutoCheck)
+        findViewById<TextView>(R.id.versionText).text = "JP Subs version ${UpdateManager.currentVersion()}"
+        findViewById<Button>(R.id.updateButton).setOnClickListener { UpdateManager.check(this, manual = true) }
+        updateAutoCheck.setOnCheckedChangeListener { _, checked ->
+            Settings.updateNever = !checked
+            if (checked) Settings.updateRemindAt = 0L
+            Settings.save(this)
+        }
         translatorSpinner = findViewById(R.id.translatorSpinner)
         translatorNote = findViewById(R.id.translatorNote)
         aiUrlEdit = findViewById(R.id.aiUrlEdit)
@@ -632,6 +641,7 @@ class MainActivity : ComponentActivity() {
             s.label.text = describeSlider(s, value)
         }
         debugCheck.isChecked = Settings.showDebug
+        updateAutoCheck.isChecked = !Settings.updateNever
         refreshTranslatorPanel()
         energyCheck.isChecked = Settings.energyBackup
         refreshAsrPanel()
@@ -647,7 +657,11 @@ class MainActivity : ComponentActivity() {
         ModelManager.refresh(this) // is the model already on the phone?
         shownTranscriptVersion = -1 // force a redraw of the text
         handler.post(refreshLoop)
-        handler.postDelayed({ startOnboardingIfNeeded() }, 900)
+        UpdateManager.resumePending(this) // continues an update after "allow installs" was granted
+        handler.postDelayed({
+            startOnboardingIfNeeded()
+            if (onboardStep < 0) UpdateManager.autoCheck(this)
+        }, 900)
     }
 
     override fun onPause() {

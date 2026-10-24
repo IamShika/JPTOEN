@@ -74,6 +74,11 @@ object Settings {
     /** True once the first-run guide has been finished or skipped. */
     @Volatile var onboarded: Boolean = false
 
+    /** Update checker: never ask, ask again after this time (ms), and when we last looked (ms). */
+    @Volatile var updateNever: Boolean = false
+    @Volatile var updateRemindAt: Long = 0L
+    @Volatile var updateLastCheck: Long = 0L
+
     /** Show the debug lines under the Start button. */
     @Volatile var showDebug: Boolean = true
 
@@ -98,6 +103,9 @@ object Settings {
         showDebug = p.getBoolean("showDebug", true)
         overlayEnabled = p.getBoolean("overlayEnabled", false)
         onboarded = p.getBoolean("onboarded", false)
+        updateNever = p.getBoolean("updateNever", false)
+        updateRemindAt = p.getLong("updateRemindAt", 0L)
+        updateLastCheck = p.getLong("updateLastCheck", 0L)
         translator = p.getString("translator", Translators.ML_KIT) ?: Translators.ML_KIT
         deeplKey = p.getString("deeplKey", "") ?: ""
         aiBaseUrl = p.getString("aiBaseUrl", aiBaseUrl) ?: aiBaseUrl
@@ -126,6 +134,9 @@ object Settings {
             .putBoolean("showDebug", showDebug)
             .putBoolean("overlayEnabled", overlayEnabled)
             .putBoolean("onboarded", onboarded)
+            .putBoolean("updateNever", updateNever)
+            .putLong("updateRemindAt", updateRemindAt)
+            .putLong("updateLastCheck", updateLastCheck)
             .putString("translator", translator)
             .putString("deeplKey", deeplKey)
             .putString("aiBaseUrl", aiBaseUrl)

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0
+- First public release. MIT license.
+- New app ID `io.github.iamshika.jpsubs` (installs next to old test builds, which can be uninstalled).
+- Release builds signed with a private key kept in GitHub Secrets (docs/RELEASING.md);
+  pushing a tag like v1.0.0 publishes a versioned release with `JP-Subs.apk`.
+- In-app update check: Update, or remind me in 1 to 7 days, or never (Tuning > Other).
+- Tested on Realme 12 Pro+ and Oppo A96.
+
 ## 0.9.1
 - Fixes the build error in 0.9.0 (progress bar style attribute in the new layout).
 

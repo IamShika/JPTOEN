@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lets the Android installer read the downloaded update from the app's cache/updates folder. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

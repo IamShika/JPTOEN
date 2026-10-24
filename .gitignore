@@ -8,3 +8,7 @@ captures/
 
 # The speech engine libraries are downloaded by the GitHub build, never committed.
 app/src/main/jniLibs/
+
+# Private release key: NEVER commit it
+*.jks
+*.b64

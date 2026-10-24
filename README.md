@@ -7,8 +7,8 @@ JP Subs listens to the sound your phone is playing (YouTube, Twitter/X, a game, 
 recognizes the Japanese speech, translates it and shows the English as floating subtitles over
 the other app. Japanese to English only. Free and open source.
 
-> Status: version 0.9.1, beta. Tested on a Realme 12 Pro+ (Snapdragon 7s Gen 2). Older or weaker
-> phones may be too slow for the bigger models.
+> Version 1.0.0. Tested on a Realme 12 Pro+ (Snapdragon 7s Gen 2) and an Oppo A96 (Snapdragon 680)
+> with SenseVoice and Google Translate. The two biggest recognizers may be too slow on weak phones.
 
 ## Features
 
@@ -18,11 +18,13 @@ the other app. Japanese to English only. Free and open source.
 - Floating subtitle box you can drag; it shrinks to fit the text and follows screen rotation.
 - Noise suppression, a backup detector for high voices and screams, and live tuning sliders.
 - Dark interface with three tabs: **Live**, **Models**, **Tuning**.
+- Tells you when a new version is out and can download and install it for you.
 
 ## Install
 
-1. On your phone open the **Releases** page of this repo and tap **Latest build**.
-2. Download `app-debug.apk` and open it (allow "install unknown apps" for your browser if asked).
+1. On your phone open the **Releases** page of this repo and download `JP-Subs.apk` from the
+   newest version (the **Latest build** page has the newest test build).
+2. Open the downloaded file (allow "install unknown apps" for your browser if asked).
    Android 10 or newer is required.
 3. Open JP Subs. The first-run guide offers **Set up for me**, which downloads about 420 MB
    (Wi-Fi recommended) and picks good defaults (SenseVoice recognizer, Google Translate).
@@ -31,6 +33,12 @@ the other app. Japanese to English only. Free and open source.
    page where you switch JP Subs on).
 
 Updates install over the old version and keep your settings and downloaded models.
+
+**In-app updates:** when you open the app it quietly checks this repo for a newer official release.
+If there is one, it asks: **Update** (downloads the APK and opens Android's installer; the first
+time Android asks you to allow JP Subs to install apps) or **Remind me later** with a choice of
+1 to 7 days or never. You can check by hand, or switch automatic checks on or off, in
+**Tuning > Other**. Only official versions (tags like `v1.0.1`) are offered, not test builds.
 
 ## Choosing models
 
@@ -69,7 +77,7 @@ Open the **Tuning** tab while a stream plays (use a small window next to the vid
 
 ## Troubleshooting
 
-- **"Package appears to be invalid"**: the download was cut off. Download `app-debug.apk` again.
+- **"Package appears to be invalid"**: the download was cut off. Download `JP-Subs.apk` again.
 - **Nothing appears:** check the Live tab status line and the debug lines; make sure the app
   playing the sound allows capture (some apps and DRM video block it).
 - **Online translator errors:** the debug lines show the reason; ML Kit answers meanwhile.
@@ -82,18 +90,19 @@ Update from Termux (change the version in the zip name and in the commit message
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-v0.9.1.zip -d jpsubs-milestone1
+unzip -o jpsubs-v1.0.0.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Update to 0.9.1"
+git commit -m "Update to 1.0.0"
 git push
 ```
 
 Keep the folder name `jpsubs-milestone1`: it holds the hidden `.git` folder from your first push.
 The repo must stay **public**, because the app downloads its models from this repo's Releases.
 The first build also copies the optional recognizer models onto the Releases page (a few minutes).
-Builds are signed with the committed development key `app/debug.keystore`, which is fine for
-personal use; use a private key in GitHub Secrets before publishing the app to other people.
+
+Signing a release with your own private key and publishing a version: see
+[docs/RELEASING.md](docs/RELEASING.md).
 
 ## How it works
 
@@ -109,4 +118,5 @@ detector), `AsrModels.kt` and `ModelManager.kt` (model downloads), `Translators.
 ## Credits and licences
 
 Built on [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0) and the models listed
-in [NOTICE.md](NOTICE.md). See [CHANGELOG.md](CHANGELOG.md) for version history.
+in [NOTICE.md](NOTICE.md). JP Subs itself is released under the [MIT License](LICENSE).
+See [CHANGELOG.md](CHANGELOG.md) for version history.

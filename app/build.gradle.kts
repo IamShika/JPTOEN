@@ -5,12 +5,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Set by the GitHub build when the release key secrets exist.
+val releaseKeystorePath: String? = System.getenv("KEYSTORE_PATH")
+val hasReleaseKey: Boolean = !releaseKeystorePath.isNullOrBlank() && File(releaseKeystorePath!!).exists()
+
 android {
     namespace = "com.example.jpsubs"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.jpsubs"
+        applicationId = "io.github.iamshika.jpsubs"
         // Android 10 (API 29) is the first version that can capture playback audio.
         minSdk = 29
         targetSdk = 35
@@ -18,7 +22,7 @@ android {
         // GitHub numbers every build 1, 2, 3 ... so we use that number (plus 100, which is
         // higher than the versions you installed before).
         versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
-        versionName = "0.9.1"
+        versionName = "1.0.0"
 
         // Both your phones are 64-bit ARM, so we only ship that version of the
         // speech engine. It keeps the APK small.
@@ -30,6 +34,7 @@ android {
         // YOUR GitHub repo. On GitHub's build servers the repo name is read
         // automatically; the text after ?: is only a fallback.
         val repo = System.getenv("GITHUB_REPOSITORY") ?: "IamShika/JPTOEN"
+        buildConfigField("String", "GITHUB_REPO", "\"$repo\"")
         buildConfigField(
             "String",
             "MODEL_BASE_URL",
@@ -50,6 +55,35 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // The real release key. It is NOT in this repo: GitHub's build gets it from the
+        // repository secrets (see docs/RELEASING.md) and passes it in as environment variables.
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = File(releaseKeystorePath!!)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Shrinking could break the speech engine's native code, so it stays off.
+            isMinifyEnabled = false
+            // Without the secrets (for example on a fork) we fall back to the dev key so the
+            // build still works; such an APK is only for testing.
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     buildFeatures {
