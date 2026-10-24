@@ -7,7 +7,7 @@ JP Subs listens to the sound your phone is playing (YouTube, Twitter/X, a game, 
 recognizes the Japanese speech, translates it and shows the English as floating subtitles over
 the other app. Japanese to English only. Free and open source.
 
-> Status: version 0.9.0, beta. Tested on a Realme 12 Pro+ (Snapdragon 7s Gen 2). Older or weaker
+> Status: version 0.9.1, beta. Tested on a Realme 12 Pro+ (Snapdragon 7s Gen 2). Older or weaker
 > phones may be too slow for the bigger models.
 
 ## Features
@@ -82,10 +82,10 @@ Update from Termux (change the version in the zip name and in the commit message
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-v0.9.0.zip -d jpsubs-milestone1
+unzip -o jpsubs-v0.9.1.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Update to 0.9.0"
+git commit -m "Update to 0.9.1"
 git push
 ```
 

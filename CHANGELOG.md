@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.1
+- Fixes the build error in 0.9.0 (progress bar style attribute in the new layout).
+
 ## 0.9.0
 - New dark interface with three tabs (Live, Models, Tuning) and a first-run guide
   ("Set up for me" downloads everything and picks defaults).

@@ -60,7 +60,7 @@
         android:layout_marginBottom="10dp">
 <ProgressBar
         android:id="@+id/downloadBar"
-        android:style="?android:attr/progressBarStyleHorizontal"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="10dp"
         android:max="100"
@@ -87,7 +87,7 @@
 </LinearLayout>
 <ProgressBar
         android:id="@+id/levelBar"
-        android:style="?android:attr/progressBarStyleHorizontal"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="6dp"
         android:max="100"
@@ -277,7 +277,7 @@
         android:layout_marginTop="4dp" />
 <ProgressBar
         android:id="@+id/asrBar"
-        android:style="?android:attr/progressBarStyleHorizontal"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="10dp"
         android:layout_marginTop="8dp"
@@ -623,7 +623,7 @@
         android:lineSpacingExtra="3dp" />
 <ProgressBar
         android:id="@+id/onboardBar"
-        android:style="?android:attr/progressBarStyleHorizontal"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="10dp"
         android:max="100"
