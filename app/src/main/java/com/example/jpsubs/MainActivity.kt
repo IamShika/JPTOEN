@@ -55,7 +55,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var downloadButton: Button
     private lateinit var statsText: TextView
     private lateinit var transcriptText: TextView
-    private lateinit var settingsButton: Button
+
+    // Tabs (Live / Models / Tuning)
+    private lateinit var tabViews: List<TextView>
+    private lateinit var paneViews: List<View>
+
+    // First-run guide
+    private lateinit var onboardPanel: View
+    private lateinit var onboardTitle: TextView
+    private lateinit var onboardText: TextView
+    private lateinit var onboardBar: ProgressBar
+    private lateinit var onboardPrimary: Button
+    private lateinit var onboardSkip: Button
+    private var onboardStep = -1 // -1 = guide not showing; 0 welcome, 1 base files, 2 recognizer, 3 done
+    private var lastRunningLook: Boolean? = null // which look the Start/Stop button has now
     private lateinit var settingsPanel: View
     private lateinit var debugCheck: CheckBox
     private lateinit var overlayCheck: CheckBox
@@ -153,6 +166,146 @@ class MainActivity : ComponentActivity() {
         downloadButton.setOnClickListener { ModelManager.startDownload(this) }
 
         setUpSettingsPanel()
+        setUpTabs()
+        setUpOnboarding()
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Tabs
+    // ---------------------------------------------------------------------------------------
+
+    private fun setUpTabs() {
+        tabViews = listOf(
+            findViewById(R.id.tabLive), findViewById(R.id.tabModels), findViewById(R.id.tabTuning)
+        )
+        paneViews = listOf(
+            findViewById(R.id.paneLive), findViewById(R.id.paneModels), findViewById(R.id.paneTuning)
+        )
+        for ((index, tab) in tabViews.withIndex()) {
+            tab.setOnClickListener { selectTab(index) }
+        }
+        selectTab(0)
+    }
+
+    private fun selectTab(selected: Int) {
+        for ((index, pane) in paneViews.withIndex()) {
+            pane.visibility = if (index == selected) View.VISIBLE else View.GONE
+            tabViews[index].setTextColor(
+                ContextCompat.getColor(this, if (index == selected) R.color.accent else R.color.text_dim)
+            )
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // First-run guide: one tap downloads everything needed and picks good defaults.
+    // ---------------------------------------------------------------------------------------
+
+    private fun setUpOnboarding() {
+        onboardPanel = findViewById(R.id.onboardPanel)
+        onboardTitle = findViewById(R.id.onboardTitle)
+        onboardText = findViewById(R.id.onboardText)
+        onboardBar = findViewById(R.id.onboardBar)
+        onboardPrimary = findViewById(R.id.onboardPrimary)
+        onboardSkip = findViewById(R.id.onboardSkip)
+
+        onboardPrimary.setOnClickListener {
+            when (onboardStep) {
+                0 -> {
+                    // Good defaults: SenseVoice recognizer + Google Translate.
+                    Settings.asrModel = "sensevoice"
+                    Settings.translator = Translators.GOOGLE
+                    Settings.save(this)
+                    onboardStep = 1
+                    ModelManager.startDownload(this)
+                }
+                1 -> ModelManager.startDownload(this) // retry after a failure
+                2 -> AsrModels.download(this, "sensevoice") // retry after a failure
+                3 -> finishOnboarding()
+            }
+            refreshOnboarding()
+        }
+        onboardSkip.setOnClickListener { finishOnboarding() }
+    }
+
+    /** Called a moment after the app opens: shows the guide only to a person who needs it. */
+    private fun startOnboardingIfNeeded() {
+        if (Settings.onboarded || onboardStep >= 0) return
+        if (ModelManager.allReady && AsrModels.isInstalled(Settings.asrModel)) {
+            // Already set up (for example after an update): never show the guide.
+            Settings.onboarded = true
+            Settings.save(this)
+            return
+        }
+        onboardStep = 0
+        onboardPanel.visibility = View.VISIBLE
+        refreshOnboarding()
+    }
+
+    private fun finishOnboarding() {
+        Settings.onboarded = true
+        Settings.save(this)
+        onboardStep = -1
+        onboardPanel.visibility = View.GONE
+        refreshAsrPanel()
+        refreshTranslatorPanel()
+    }
+
+    /** Redraws the guide and moves it to the next step when the current one has finished. */
+    private fun refreshOnboarding() {
+        if (onboardStep < 0) return
+
+        // Move forward automatically when a download finishes.
+        if (onboardStep == 1 && ModelManager.allReady && ModelManager.state != ModelManager.State.DOWNLOADING) {
+            onboardStep = 2
+            AsrModels.download(this, "sensevoice")
+        }
+        if (onboardStep == 2 && AsrModels.isInstalled("sensevoice")) onboardStep = 3
+
+        onboardBar.visibility = View.GONE
+        onboardSkip.visibility = View.GONE
+        onboardPrimary.isEnabled = true
+        when (onboardStep) {
+            0 -> {
+                onboardTitle.text = "Welcome to JP Subs"
+                onboardText.text = "Live English subtitles for Japanese streams and videos, shown over any app.\n\n" +
+                    "Tap the button and the app downloads what it needs (about 420 MB, Wi-Fi recommended) " +
+                    "and picks good settings. You can change everything later."
+                onboardPrimary.text = "Set up for me"
+                onboardSkip.visibility = View.VISIBLE
+            }
+            1 -> {
+                onboardTitle.text = "Downloading (1 of 2)"
+                onboardText.text = ModelManager.message.ifEmpty { "Getting the speech tools…" }
+                onboardBar.visibility = View.VISIBLE
+                onboardBar.progress = (ModelManager.progress * 100).toInt()
+                if (ModelManager.state == ModelManager.State.FAILED) {
+                    onboardPrimary.text = "Try again"
+                } else {
+                    onboardPrimary.text = "Downloading…"
+                    onboardPrimary.isEnabled = false
+                }
+            }
+            2 -> {
+                onboardTitle.text = "Downloading (2 of 2)"
+                onboardText.text = AsrModels.message.ifEmpty { "Getting the speech recognizer (SenseVoice)…" }
+                onboardBar.visibility = View.VISIBLE
+                onboardBar.progress = (AsrModels.progress * 100).toInt()
+                if (AsrModels.busyId == null && AsrModels.message.startsWith("Download failed")) {
+                    onboardPrimary.text = "Try again"
+                } else {
+                    onboardPrimary.text = "Downloading…"
+                    onboardPrimary.isEnabled = false
+                }
+            }
+            3 -> {
+                onboardTitle.text = "All set!"
+                onboardText.text = "Open a Japanese stream or video in another app, come back here and tap " +
+                    "Start. Android will ask for permission to capture the phone's sound (the " +
+                    "microphone is never used).\n\nTip: tick \"Floating subtitles\" on the Live tab to see " +
+                    "them over the video."
+                onboardPrimary.text = "Finish"
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -162,7 +315,6 @@ class MainActivity : ComponentActivity() {
     private fun setUpSettingsPanel() {
         Settings.load(this)
 
-        settingsButton = findViewById(R.id.settingsButton)
         settingsPanel = findViewById(R.id.settingsPanel)
         debugCheck = findViewById(R.id.debugCheck)
         overlayCheck = findViewById(R.id.overlayCheck)
@@ -182,11 +334,6 @@ class MainActivity : ComponentActivity() {
         denoiseAsrCheck = findViewById(R.id.denoiseAsrCheck)
         resetButton = findViewById(R.id.resetButton)
 
-        settingsButton.setOnClickListener {
-            val show = settingsPanel.visibility != View.VISIBLE
-            settingsPanel.visibility = if (show) View.VISIBLE else View.GONE
-            settingsButton.text = getString(if (show) R.string.btn_hide_settings else R.string.btn_show_settings)
-        }
 
         // The last "true/false" says whether the voice detector must be rebuilt after a change.
         addSlider(
@@ -500,6 +647,7 @@ class MainActivity : ComponentActivity() {
         ModelManager.refresh(this) // is the model already on the phone?
         shownTranscriptVersion = -1 // force a redraw of the text
         handler.post(refreshLoop)
+        handler.postDelayed({ startOnboardingIfNeeded() }, 900)
     }
 
     override fun onPause() {
@@ -591,6 +739,14 @@ class MainActivity : ComponentActivity() {
 
         // --- start / stop button: needs the model, except that Stop must always work
         toggleButton.isEnabled = modelReady || running
+        toggleButton.alpha = if (toggleButton.isEnabled) 1f else 0.45f
+        if (lastRunningLook != running) {
+            lastRunningLook = running
+            toggleButton.setBackgroundResource(if (running) R.drawable.bg_btn_danger else R.drawable.bg_btn_primary)
+            toggleButton.setTextColor(
+                ContextCompat.getColor(this, if (running) R.color.text else R.color.on_accent)
+            )
+        }
         toggleButton.text = getString(if (running) R.string.btn_stop else R.string.btn_start)
 
         // --- the line of status text under the title
@@ -616,6 +772,8 @@ class MainActivity : ComponentActivity() {
             statsText.text = stats
         }
 
+        refreshOnboarding()
+
         // --- the Japanese text (only redrawn when it changed)
         val version = Transcript.version
         if (version != shownTranscriptVersion) {
@@ -637,20 +795,26 @@ class MainActivity : ComponentActivity() {
         val flags = Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         val out = SpannableStringBuilder()
 
-        for (line in Transcript.snapshot()) {
+        for ((index, line) in Transcript.snapshot().withIndex()) {
             if (out.isNotEmpty()) out.append("\n\n")
 
             val english = line.english
             if (english.isNullOrBlank()) {
                 out.append(line.japanese)
             } else {
-                out.append(english, StyleSpan(Typeface.BOLD), flags)
+                // The newest line is bright; older lines fade a little.
+                val englishStart = out.length
+                out.append(english)
+                out.setSpan(StyleSpan(Typeface.BOLD), englishStart, out.length, flags)
+                if (index > 0) {
+                    out.setSpan(ForegroundColorSpan(Color.parseColor("#B8BCC2")), englishStart, out.length, flags)
+                }
                 out.append("\n")
 
                 val start = out.length
                 out.append(line.japanese)
                 out.setSpan(RelativeSizeSpan(0.75f), start, out.length, flags)
-                out.setSpan(ForegroundColorSpan(Color.GRAY), start, out.length, flags)
+                out.setSpan(ForegroundColorSpan(Color.parseColor("#8A9099")), start, out.length, flags)
             }
         }
         return out

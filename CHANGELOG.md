@@ -1,0 +1,32 @@
+# Changelog
+
+## 0.9.0
+- New dark interface with three tabs (Live, Models, Tuning) and a first-run guide
+  ("Set up for me" downloads everything and picks defaults).
+- Shorter README; version history moved here.
+
+## 0.8.0
+- Translator picker: Google ML Kit (offline), Google Translate, DeepL, AI chat model
+  (any OpenAI-compatible service). Online failures fall back to ML Kit. "Test translator" button.
+
+## 0.7.0
+- Backup loudness detector for high-pitched voices and sudden loud sounds; Loudness debug line.
+
+## 0.6.x
+- Recognizer picker with download/delete: ReazonSpeech, SenseVoice, Whisper small, Qwen3-ASR, Fun-ASR Nano.
+- Floating box follows rotation and fits its text. Leaked control text and invented Chinese
+  words from the newer recognizers are filtered out.
+
+## 0.5.0
+- Floating subtitles over other apps.
+
+## 0.4.x
+- Noise suppression (GTCRN) for the detector, padding around each piece, "shortest sound" slider.
+- Translator tidy-up: reactions table, no full stop on very short words, failed answers hidden.
+
+## 0.3.x
+- Live settings sliders and debug view. Fixed signing key so updates install over old versions.
+  App icon.
+
+## 0.1 to 0.2
+- Milestones 1 to 3: capture playback audio, Japanese speech recognition, translation.

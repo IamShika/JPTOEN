@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">JP Subs</string>
-    <string name="subtitle">Milestone 3: Japanese to English</string>
+    <string name="subtitle">Live Japanese to English subtitles</string>
 
     <string name="btn_start">Start listening</string>
     <string name="btn_stop">Stop</string>
@@ -10,7 +10,7 @@
     <string name="btn_show_settings">Show settings</string>
     <string name="btn_hide_settings">Hide settings</string>
     <string name="btn_reset">Reset to defaults</string>
-    <string name="check_overlay">Floating subtitles over other apps (asks for permission)</string>
+    <string name="check_overlay">Floating subtitles over other apps</string>
     <string name="check_overlay_jp">Show the Japanese line in the floating box too</string>
     <string name="asr_title">Speech recognizer (takes effect the next time you tap Start)</string>
     <string name="check_energy">Backup detector: send loud sounds the detector ignores (high voices, screams; may also send music)</string>

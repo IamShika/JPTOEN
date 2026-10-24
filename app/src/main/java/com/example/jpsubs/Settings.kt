@@ -71,6 +71,9 @@ object Settings {
     @Volatile var aiKey: String = ""
     @Volatile var aiModel: String = "gemini-2.5-flash"
 
+    /** True once the first-run guide has been finished or skipped. */
+    @Volatile var onboarded: Boolean = false
+
     /** Show the debug lines under the Start button. */
     @Volatile var showDebug: Boolean = true
 
@@ -94,6 +97,7 @@ object Settings {
         minCharacters = p.getInt("minCharacters", Tuning.MIN_CHARACTERS)
         showDebug = p.getBoolean("showDebug", true)
         overlayEnabled = p.getBoolean("overlayEnabled", false)
+        onboarded = p.getBoolean("onboarded", false)
         translator = p.getString("translator", Translators.ML_KIT) ?: Translators.ML_KIT
         deeplKey = p.getString("deeplKey", "") ?: ""
         aiBaseUrl = p.getString("aiBaseUrl", aiBaseUrl) ?: aiBaseUrl
@@ -121,6 +125,7 @@ object Settings {
             .putInt("minCharacters", minCharacters)
             .putBoolean("showDebug", showDebug)
             .putBoolean("overlayEnabled", overlayEnabled)
+            .putBoolean("onboarded", onboarded)
             .putString("translator", translator)
             .putString("deeplKey", deeplKey)
             .putString("aiBaseUrl", aiBaseUrl)
