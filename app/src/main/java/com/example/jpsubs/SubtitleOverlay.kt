@@ -40,6 +40,7 @@ class SubtitleOverlay(private val context: Context) {
 
     private var screenW = 0
     private var screenH = 0
+    private var dragging = false
     private var shownVersion = -1
     private var lastChangeTime = 0L
     private var started = false
@@ -94,6 +95,28 @@ class SubtitleOverlay(private val context: Context) {
         }
     }
 
+    /**
+     * Keeps the whole box on the screen. Long text makes the box taller, and because it hangs
+     * from its top edge it would run off the bottom. So we slide it up just enough, and when
+     * the next line is shorter it goes back to the spot you chose.
+     */
+    private fun keepOnScreen() {
+        val b = box ?: return
+        val lp = params ?: return
+        if (dragging || b.height <= 0 || screenH <= 0) return
+        val margin = (32 * context.resources.displayMetrics.density).toInt() // gesture bar room
+        val maxY = (screenH - b.height - margin).coerceAtLeast(0)
+        val wanted = (Settings.overlayYFraction * screenH).toInt()
+        val y = minOf(wanted, maxY).coerceAtLeast(0)
+        if (lp.y != y) {
+            lp.y = y
+            try {
+                windowManager.updateViewLayout(b, lp)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     private fun update() {
         val allowed = Settings.overlayEnabled &&
             android.provider.Settings.canDrawOverlays(context)
@@ -128,6 +151,8 @@ class SubtitleOverlay(private val context: Context) {
             val (w, h) = currentScreenSize()
             if (w != screenW || h != screenH) fitToScreen()
         }
+
+        keepOnScreen()
 
         // Hide after a while without new speech.
         val hideAfterMs = Settings.overlaySeconds * 1000L
@@ -193,6 +218,7 @@ class SubtitleOverlay(private val context: Context) {
         layout.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    dragging = true
                     startX = lp.x
                     startY = lp.y
                     touchX = event.rawX
@@ -209,12 +235,17 @@ class SubtitleOverlay(private val context: Context) {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
+                    dragging = false
                     Settings.overlayYFraction = (lp.y.toFloat() / screenH).coerceIn(0f, 0.95f)
                     Settings.save(context)
                     true
                 }
                 else -> false
             }
+        }
+
+        layout.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top != oldBottom - oldTop) handler.post { keepOnScreen() }
         }
 
         try {

@@ -34,6 +34,12 @@ Check each project's page for the license terms of the model weights before redi
 - Qwen3-ASR 0.6B (Qwen team, Alibaba): https://github.com/Wasser1462/Qwen3-ASR-onnx (ONNX export)
 - Whisper small (OpenAI): https://github.com/openai/whisper
 
+## Screenshots
+
+The stream images in `docs/screenshots/` are screenshots of third-party livestreams, owned by their
+creators, shown only to demonstrate the app. They are not covered by the MIT license. Remove them on
+request.
+
 ## Online translators (optional, only if you choose them)
 
 - Google Translate web address (unofficial, no key): used at your own risk under Google's terms.

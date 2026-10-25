@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+- Floating subtitles stay fully on screen: when a line is long, the box slides up just enough and
+  returns to your chosen spot for shorter lines.
+
 ## 1.0.0
 - First public release. MIT license.
 - New app ID `io.github.iamshika.jpsubs` (installs next to old test builds, which can be uninstalled).

@@ -7,8 +7,34 @@ JP Subs listens to the sound your phone is playing (YouTube, Twitter/X, a game, 
 recognizes the Japanese speech, translates it and shows the English as floating subtitles over
 the other app. Japanese to English only. Free and open source.
 
-> Version 1.0.0. Tested on a Realme 12 Pro+ (Snapdragon 7s Gen 2) and an Oppo A96 (Snapdragon 680)
+> Version 1.0.1. Tested on a Realme 12 Pro+ (Snapdragon 7s Gen 2) and an Oppo A96 (Snapdragon 680)
 > with SenseVoice and Google Translate. The two biggest recognizers may be too slow on weak phones.
+
+## Screenshots
+
+Subtitles floating over a stream (English on top, the Japanese heard underneath):
+
+<p>
+  <img src="docs/screenshots/subtitles-1.jpg" width="49%" alt="Subtitles over a horror game stream">
+  <img src="docs/screenshots/subtitles-2.jpg" width="49%" alt="Subtitles over a VTuber stream">
+</p>
+<p>
+  <img src="docs/screenshots/subtitles-3.jpg" width="49%" alt="Subtitles over a drinking stream">
+  <img src="docs/screenshots/subtitles-4.jpg" width="49%" alt="Subtitles over an educational segment">
+</p>
+<p>
+  <img src="docs/screenshots/subtitles-5.jpg" width="49%" alt="A long sentence, with the box fitted to the text">
+</p>
+
+The app's three tabs: **Live**, **Tuning** and **Models**.
+
+<p>
+  <img src="docs/screenshots/live-tab.jpg" width="32%" alt="Live tab">
+  <img src="docs/screenshots/tuning-tab.jpg" width="32%" alt="Tuning tab">
+  <img src="docs/screenshots/models-tab.jpg" width="32%" alt="Models tab">
+</p>
+
+> The stream images belong to their creators and are shown only to demonstrate the app.
 
 ## Features
 
@@ -90,10 +116,10 @@ Update from Termux (change the version in the zip name and in the commit message
 
 ```bash
 cd ~/downloads
-unzip -o jpsubs-v1.0.0.zip -d jpsubs-milestone1
+unzip -o jpsubs-v1.0.1.zip -d jpsubs-milestone1
 cd jpsubs-milestone1/jpsubs
 git add .
-git commit -m "Update to 1.0.0"
+git commit -m "Update to 1.0.1"
 git push
 ```
 
